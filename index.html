@@ -11,11 +11,14 @@
 <style>
   :root{
     --bg:#dfe1e1; --card:#fff; --text:#000; --accent:#f5b95f; --accent-b:#e5be74;
-    --red:#e53935; --blue:#1e88e5; --purple:#8e24aa; --green:#43a047; --orange:#fb8c00; --brown:#6d4c41; --slate:#546e7a;
+    --shadow:0 3px 10px rgba(0,0,0,.08);
+    --red:#e53935; --blue:#1e88e5; --orange:#fb8c00; --green:#43a047; --purple:#8e24aa; --teal:#00bfa6;
   }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
   .wrap{max-width:1400px;margin:0 auto;padding:18px 16px 56px}
+
+  /* Header (non-sticky) */
   .topbar{
     background:#000;color:#fff;border-bottom:4px solid var(--accent);
     padding:12px 16px;border-radius:10px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;
@@ -28,6 +31,8 @@
   }
   .rbtn:hover,.rbtn.active{background:#000;color:#fff;border-color:#000}
   .export{background:#fff;color:#000;border:1px solid #333}
+
+  /* Sections */
   .section{margin:18px 0}
   .titlebar{
     background:#000;color:#fff;padding:12px 16px;border-radius:10px 10px 0 0;font-weight:700;
@@ -36,16 +41,22 @@
   .titlebar.collapsible{cursor:pointer}
   .caret{font-size:0.9rem;opacity:.9}
   .card-wrap{overflow:hidden;transition:max-height .2s ease-in-out}
-  .card{background:var(--card);border-radius:0 0 10px 10px;box-shadow:0 3px 10px rgba(0,0,0,.08);padding:14px}
+  .card{background:var(--card);border-radius:0 0 10px 10px;box-shadow:var(--shadow);padding:14px}
+
+  /* Controls */
   .rangebar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:6px 0 10px}
   .rangebar input[type="month"]{padding:6px 8px;border-radius:8px;border:1px solid #ccc}
+
+  /* Metrics */
   .metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:8px 0 2px}
   .metric{background:#fafafa;border:1px solid #eee;border-radius:10px;padding:8px 10px}
   .metric .k{font-size:.85rem;color:#444}
   .metric .v{font-weight:700;font-size:1.05rem}
+
+  /* Charts */
   .chart{width:100%;height:520px}
   @media (max-width:720px){
-    .chart{height:480px}
+    .chart{height:460px}
     .metrics{grid-template-columns:1fr}
   }
 </style>
@@ -70,7 +81,7 @@
             <button class="rbtn" data-target="chart-total" data-range="6M">6M</button>
             <button class="rbtn" data-target="chart-total" data-range="1A">1A</button>
             <button class="rbtn" data-target="chart-total" data-range="5A">5A</button>
-            <button class="rbtn" data-target="chart-total" data-range="TUDO">Tudo</button>
+            <button class="rbtn active" data-target="chart-total" data-range="TUDO">Tudo</button>
             <span style="margin-left:8px;">De</span>
             <input type="month" id="from-total"/>
             <span>até</span>
@@ -90,7 +101,7 @@
       </div>
     </div>
 
-    <!-- (Placeholders for next phases) -->
+    <!-- Faturamento por Categoria -->
     <div class="section">
       <div class="titlebar collapsible" data-target="card-cat"><span>💰 Faturamento por Categoria (Linhas)</span><span class="caret">▼</span></div>
       <div id="card-cat" class="card-wrap" style="max-height:0">
@@ -100,7 +111,7 @@
             <button class="rbtn" data-target="chart-cat" data-range="6M">6M</button>
             <button class="rbtn" data-target="chart-cat" data-range="1A">1A</button>
             <button class="rbtn" data-target="chart-cat" data-range="5A">5A</button>
-            <button class="rbtn" data-target="chart-cat" data-range="TUDO">Tudo</button>
+            <button class="rbtn active" data-target="chart-cat" data-range="TUDO">Tudo</button>
             <span style="margin-left:8px;">De</span>
             <input type="month" id="from-cat"/>
             <span>até</span>
@@ -108,50 +119,78 @@
             <button class="rbtn" onclick="applyCustom('chart-cat','from-cat','to-cat')">Aplicar</button>
             <button class="rbtn" onclick="resetRange('chart-cat')">Reset</button>
           </div>
-          <div class="metrics">
-            <div class="metric"><div class="k">Variação total</div><div class="v">—</div></div>
-            <div class="metric"><div class="k">Média mensal</div><div class="v">—</div></div>
-            <div class="metric"><div class="k">Volatilidade</div><div class="v">—</div></div>
+
+          <div class="metrics" id="metrics-cat">
+            <div class="metric"><div class="k">Variação total</div><div class="v" id="var-cat">—</div></div>
+            <div class="metric"><div class="k">Média mensal</div><div class="v" id="med-cat">—</div></div>
+            <div class="metric"><div class="k">Volatilidade</div><div class="v" id="vol-cat">—</div></div>
           </div>
+
           <div class="chart" id="chart-cat"></div>
         </div>
       </div>
     </div>
 
+    <!-- Desempenho por Categoria (colapsável por categoria) -->
+    <div class="section">
+      <div class="titlebar collapsible" data-target="card-cats"><span>📈 Desempenho por Categoria</span><span class="caret">▼</span></div>
+      <div id="card-cats" class="card-wrap" style="max-height:0">
+        <div class="card" id="cats-container">
+          <!-- Cards por categoria serão injetados aqui -->
+        </div>
+      </div>
+    </div>
   </div>
 
 <script>
 /* ---------------------- Helpers ---------------------- */
-const MESES_PT = ["","Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+const PT_ABBR=["JAN","FEV","MAR","ABR","MAI","JUN","JUL","AGO","SET","OUT","NOV","DEZ"];
+const COLORS = {
+  "Corrediça Oculta":"var(--red)",
+  "Corrediça Telescópica":"var(--orange)",
+  "Dobradiças":"var(--purple)",
+  "Articuladores":"var(--green)",
+  "Rodízio":"var(--teal)",
+  "Pulsadores":"var(--blue)"
+};
 function brToFloat(v){
   if (v==null) return 0;
   const s = String(v).trim();
   if (!s) return 0;
-  // handle Brazilian formatting: 3.693.838,12 -> 3693838.12
   return parseFloat(s.replace(/\./g,"").replace(",",".")) || 0;
 }
-function fmtBRL(n){
-  return "R$ " + (Math.round(n)).toLocaleString("pt-BR");
-}
+function fmtBRL(n){ return "R$ " + Math.round(n).toLocaleString("pt-BR"); }
 function endOfMonth(d){ return new Date(d.getFullYear(), d.getMonth()+1, 0); }
 function startOfMonth(d){ return new Date(d.getFullYear(), d.getMonth(), 1); }
 function addMonths(d, m){ return new Date(d.getFullYear(), d.getMonth()+m, 1); }
 function ymToDate(s){ if(!s) return null; const p=s.split("-"); if(p.length!==2) return null; return new Date(parseInt(p[0]), parseInt(p[1])-1, 1); }
 
-/* ---------------- Collapsibles ---------------- */
+/* Categoria mapping via Descricao (uppercase PT keywords) */
+function mapCategoria(descRaw){
+  const d = (descRaw||"").toUpperCase();
+  if (d.includes("ESCOND") || d.includes("SLIM MV119")) return "Corrediça Oculta";
+  if (d.includes("TRILHO") && (d.includes("NORMAL") || d.includes("TELE") || d.includes("TELesc"))) return "Corrediça Telescópica";
+  if (d.includes("DOBRAD")) return "Dobradiças";
+  if (d.includes("PIST") || d.includes("ARTICUL")) return "Articuladores";
+  if (d.includes("RODIZ")) return "Rodízio";
+  if (d.includes("PULSADOR") || d.includes("TIP-ON") || d.includes("TIP ON")) return "Pulsadores";
+  return "Acessórios"; /* default residual */
+}
+
+/* Collapsibles */
 document.querySelectorAll('.titlebar.collapsible').forEach(el=>{
   el.addEventListener('click', ()=>{
     const id = el.getAttribute('data-target');
     const wrap = document.getElementById(id);
     if(!wrap) return;
     const open = (!wrap.style.maxHeight || wrap.style.maxHeight==='0px');
-    wrap.style.maxHeight = open ? '9999px' : '0';
+    wrap.style.maxHeight = open ? '2000px' : '0';
     const caret = el.querySelector('.caret');
     if (caret) caret.textContent = open ? '▼' : '▶';
   });
 });
 
-/* --------------- Range Controls --------------- */
+/* Range Controls */
 let DATA_MIN = null, DATA_MAX = null;
 function applyRangeTo(divId, start, end){
   const gd = document.getElementById(divId);
@@ -188,142 +227,329 @@ function wireRangeBar(barId){
   });
 }
 
-/* --------------- Metrics (placeholders) --------------- */
-function computeMetrics(rows){
+/* Metrics */
+function computeMetrics(rows, key='Valor'){
   if(!rows.length) return {varTotal:"—", medMensal:"—", vol:"—"};
-  const vals = rows.map(r=>r.Valor);
+  const vals = rows.map(r=>r[key]||0);
+  if(vals.length<2) return {varTotal:"—", medMensal:fmtBRL(vals[0]||0), vol:"—"};
   const first = vals[0], last = vals[vals.length-1];
   const varTotal = (first===0)? 0 : ((last-first)/Math.abs(first))*100;
   const diffs = [];
-  for(let i=1;i<vals.length;i++) diffs.push(Math.abs(vals[i]-vals[i-1]));
-  const vol = diffs.length ? (100* (diffs.reduce((a,b)=>a+b,0)/diffs.length) / (Math.max(...vals)||1)) : 0;
+  for(let i=1;i<vals.length;i++) diffs.push((vals[i-1]===0)?0: ( (vals[i]-vals[i-1])/Math.abs(vals[i-1])*100 ));
+  const vol = diffs.length ? (diffs.reduce((a,b)=>a+Math.abs(b),0)/diffs.length) : 0;
   const medMensal = (vals.reduce((a,b)=>a+b,0)/vals.length);
   return {
     varTotal: (varTotal).toFixed(1).replace(".",",")+" %",
-    medMensal: fmtBRL(medMensal),
+    medMensal: key==='Valor' ? fmtBRL(medMensal) : Math.round(medMensal).toLocaleString("pt-BR"),
     vol: vol.toFixed(1).replace(".",",")+" %"
   };
 }
 
-/* --------------- Main Init --------------- */
-function initDashboard(parsed){
-  // Normalize columns: Data/date, Valor, Quantidade, Categoria
-  const rows = [];
-  parsed.forEach(o=>{
-    const DataStr = o.Data || o.date || "";
-    let d = null;
-    if (DataStr){
-      // try YYYY-MM-DD or DD/MM/YYYY
-      if (/^\d{4}-\d{2}-\d{2}$/.test(DataStr)){
-        d = new Date(DataStr);
-      } else if (/^\d{2}\/\d{2}\/\d{4}$/.test(DataStr)){
-        const [dd,mm,yy] = DataStr.split("/");
-        d = new Date(parseInt(yy), parseInt(mm)-1, parseInt(dd));
-      }
-    } else if (o.Ano && o.Mes){
-      d = new Date(parseInt(o.Ano), parseInt(o.Mes)-1, 1);
+/* Month ticks: even months with year (ABR 24, JUN 24...) */
+function evenMonthTicksWithYear(dates){
+  const tickvals=[], ticktext=[];
+  dates.forEach(iso=>{
+    const dt = new Date(iso);
+    const m = dt.getMonth()+1;
+    if (m % 2 === 0){
+      tickvals.push(iso);
+      ticktext.push(PT_ABBR[dt.getMonth()]+" "+String(dt.getFullYear()).slice(-2));
     }
-    if (!d || isNaN(d.getTime())) return;
-    rows.push({
-      Data: new Date(d.getFullYear(), d.getMonth(), 1),
-      Ano: d.getFullYear(),
-      Mes: d.getMonth()+1,
-      Valor: brToFloat(o.Valor),
-      Quantidade: brToFloat(o.Quantidade),
-      Categoria: (o.Categoria||"").trim()
+  });
+  return {tickvals, ticktext};
+}
+
+/* Line & layout helpers */
+const isMobile = () => window.innerWidth < 720;
+function lineCfg(color, mode='lines+markers'){
+  return {mode, line:{shape:'spline',smoothing:.6,width:isMobile()?2:3, color}, marker:{size:isMobile()?5:7, line:{width:1,color:'#fff'}}};
+}
+function barCfg(color){ return {type:'bar', marker:{color}, opacity:0.95}; }
+function baseLayout(xTicks, yTitleL, yTitleR=null){
+  const tf = isMobile()?10:12;
+  const lay = {
+    hovermode:'x unified',
+    legend:{orientation:'h', y:-0.25, font:{size:isMobile()?11:12}},
+    xaxis:{showgrid:false, tickmode:'array', ...xTicks, tickfont:{size:tf}, automargin:true},
+    yaxis:{gridcolor:'#e9ecef', zeroline:false, title:yTitleL, tickfont:{size:tf}, automargin:true},
+    paper_bgcolor:'#fff', plot_bgcolor:'#fff',
+    margin:{t:20,r:30,b:80,l:60}
+  };
+  if (yTitleR){
+    lay.yaxis2 = {title:yTitleR, overlaying:'y', side:'right', tickfont:{size:tf}, automargin:true};
+  }
+  return lay;
+}
+
+/* --------------- Main Init --------------- */
+let RAW_ROWS=[], MONTHLY=[], MONTHLY_BY_CAT={}, CATS=[], CAT_ORDER=[];
+function loadCSV(){
+  return new Promise((resolve,reject)=>{
+    Papa.parse("data/relatorio_faturamento.csv",{
+      download:true, header:true, skipEmptyLines:true,
+      complete:(res)=>resolve(res.data),
+      error:reject
     });
   });
-  rows.sort((a,b)=>a.Data - b.Data);
-
-  // Month-end reduction: keep last entry of each (Ano,Mes)
-  const key = r=> `${r.Ano}-${String(r.Mes).padStart(2,"0")}`;
-  const lastByMonth = {};
-  rows.forEach(r=> lastByMonth[key(r)] = r);
-  const monthRows = Object.values(lastByMonth).sort((a,b)=>a.Data - b.Data);
-
-  // Totais mensais
-  const monthlyMap = {};
-  monthRows.forEach(r=>{
-    const k = r.Data.toISOString().slice(0,10);
-    if (!monthlyMap[k]) monthlyMap[k] = {Data:r.Data, Valor:0, Quantidade:0};
-    monthlyMap[k].Valor += r.Valor;
-    monthlyMap[k].Quantidade += r.Quantidade;
+}
+function normalizeRows(rows){
+  const out=[];
+  rows.forEach(o=>{
+    const ano = parseInt(o.Ano||o.ano||o.ANO||"",10);
+    const mes = parseInt(o.Mes||o.mes||o.MES||"",10);
+    if(!Number.isFinite(ano)||!Number.isFinite(mes)) return;
+    const Data = new Date(ano, mes-1, 1);
+    out.push({
+      Codigo: (o.Codigo||"").toString().trim(),
+      Descricao: (o.Descricao||"").toString().trim(),
+      Quantidade: brToFloat(o.Quantidade),
+      Valor: brToFloat(o.Valor),
+      Mes: mes, Ano: ano,
+      Data,
+      Categoria: mapCategoria(o.Descricao)
+    });
   });
-  const monthly = Object.values(monthlyMap).sort((a,b)=>a.Data - b.Data);
-
-  // Updated label
-  const maxD = monthly.length ? monthly[monthly.length-1].Data : new Date();
-  const updated = `${MESES_PT[maxD.getMonth()+1]}/${maxD.getFullYear()}`;
-  document.getElementById("updated").textContent = "Atualizado: " + updated;
-
-  // Global min/max for range helpers
-  DATA_MIN = monthly[0]?.Data || new Date();
-  DATA_MAX = maxD;
-
-  /* ---------- Visão Geral (dual y) ---------- */
-  const x = monthly.map(r=>r.Data);
-  const hover = monthly.map(r=>{
-    const m = MESES_PT[r.Data.getMonth()+1] + " " + r.Data.getFullYear();
-    return {m, v: fmtBRL(r.Valor), q: (Math.round(r.Quantidade)).toLocaleString("pt-BR")+" un."};
+  out.sort((a,b)=>a.Data-b.Data);
+  return out;
+}
+function aggMonthly(rows){
+  const map = new Map(); // key=YYYY-MM
+  rows.forEach(r=>{
+    const key = `${r.Ano}-${String(r.Mes).padStart(2,"0")}`;
+    if(!map.has(key)) map.set(key,{Data:new Date(r.Ano,r.Mes-1,1), Valor:0, Quantidade:0});
+    const m = map.get(key);
+    m.Valor += r.Valor;
+    m.Quantidade += r.Quantidade;
   });
+  const arr = Array.from(map.values()).sort((a,b)=>a.Data-b.Data);
+  return arr;
+}
+function aggMonthlyByCategory(rows){
+  const cats = new Set();
+  const map = {}; // cat -> [{Data, Valor, Quantidade}]
+  rows.forEach(r=>{
+    cats.add(r.Categoria);
+    const key = r.Categoria;
+    if(!map[key]) map[key] = {};
+    const mkey = `${r.Ano}-${String(r.Mes).padStart(2,"0")}`;
+    if(!map[key][mkey]) map[key][mkey] = {Data:new Date(r.Ano,r.Mes-1,1), Valor:0, Quantidade:0};
+    map[key][mkey].Valor += r.Valor;
+    map[key][mkey].Quantidade += r.Quantidade;
+  });
+  const obj = {};
+  Array.from(cats).forEach(c=>{
+    obj[c] = Object.values(map[c]).sort((a,b)=>a.Data-b.Data);
+  });
+  return {cats:Array.from(cats), data:obj};
+}
 
-  const fig = {
-    data: [
-      {
-        x, y: monthly.map(r=>r.Valor), name:"Valor (R$)",
-        type:"scatter", mode:"lines+markers",
-        line:{width:3, color:"var(--red)"}, marker:{size:7, color:"var(--red)"},
-        hovertemplate:"<b>%{customdata.m}</b><br>Valor: %{customdata.v}<br>Quantidade: %{customdata.q}<extra></extra>",
-        customdata: hover, yaxis:"y1"
-      },
-      {
-        x, y: monthly.map(r=>r.Quantidade), name:"Quantidade (un.)",
-        type:"scatter", mode:"lines+markers",
-        line:{width:3, color:"var(--blue)"}, marker:{size:7, color:"var(--blue)"},
-        hovertemplate:"<b>%{customdata.m}</b><br>Valor: %{customdata.v}<br>Quantidade: %{customdata.q}<extra></extra>",
-        customdata: hover, yaxis:"y2"
+/* Build per-category cards */
+function buildCategoryCards(containerId){
+  const container = document.getElementById(containerId);
+  const order = CAT_ORDER;
+  container.innerHTML = order.map(cat=>{
+    const safe = cat.replace(/\s+/g,'-').toLowerCase();
+    return `
+      <div class="section">
+        <div class="titlebar collapsible" data-target="card-${safe}">
+          <span>${cat}</span><span class="caret">▶</span>
+        </div>
+        <div id="card-${safe}" class="card-wrap" style="max-height:0">
+          <div class="card">
+            <div class="rangebar" id="range-${safe}">
+              <button class="rbtn" data-target="chart-${safe}" data-range="3M">3M</button>
+              <button class="rbtn" data-target="chart-${safe}" data-range="6M">6M</button>
+              <button class="rbtn" data-target="chart-${safe}" data-range="1A">1A</button>
+              <button class="rbtn" data-target="chart-${safe}" data-range="5A">5A</button>
+              <button class="rbtn active" data-target="chart-${safe}" data-range="TUDO">Tudo</button>
+              <span style="margin-left:8px;">De</span>
+              <input type="month" id="from-${safe}"/>
+              <span>até</span>
+              <input type="month" id="to-${safe}"/>
+              <button class="rbtn" onclick="applyCustom('chart-${safe}','from-${safe}','to-${safe}')">Aplicar</button>
+              <button class="rbtn" onclick="resetRange('chart-${safe}')">Reset</button>
+            </div>
+            <div class="metrics">
+              <div class="metric"><div class="k">Variação total</div><div class="v" id="var-${safe}">—</div></div>
+              <div class="metric"><div class="k">Média mensal</div><div class="v" id="med-${safe}">—</div></div>
+              <div class="metric"><div class="k">Volatilidade</div><div class="v" id="vol-${safe}">—</div></div>
+            </div>
+            <div class="chart" id="chart-${safe}"></div>
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  // wire collapsibles inside container
+  container.querySelectorAll('.titlebar.collapsible').forEach(tb=>{
+    tb.addEventListener('click', ()=>{
+      const id = tb.getAttribute('data-target');
+      const wrap = document.getElementById(id);
+      const open = (!wrap.style.maxHeight || wrap.style.maxHeight==='0px');
+      wrap.style.maxHeight = open ? '2000px' : '0';
+      const caret = tb.querySelector('.caret');
+      if (caret) caret.textContent = open ? '▼' : '▶';
+      if (open){
+        const chartId = id.replace('card-','chart-');
+        drawCategory(chartId);
+        tb.scrollIntoView({behavior:'smooth', block:'start'});
       }
-    ],
-    layout:{
-      title:null, hovermode:"x unified",
-      plot_bgcolor:"var(--card)", paper_bgcolor:"var(--card)",
-      font:{color:"var(--text)", size:13},
-      xaxis:{range:[startOfMonth(addMonths(DATA_MAX,-11)), endOfMonth(DATA_MAX)], showgrid:false},
-      yaxis:{title:"Valor (R$)", tickformat: ",.0f", showgrid:true, gridcolor:"#e9ecef",
-             titlefont:{color:"var(--red)"}, tickfont:{color:"var(--red)"}},
-      yaxis2:{title:"Quantidade (un.)", overlaying:"y", side:"right", showgrid:false,
-              titlefont:{color:"var(--blue)"}, tickfont:{color:"var(--blue)"}},
-      legend:{orientation:"h", yanchor:"bottom", y:1.02, xanchor:"center", x:0.5, bgcolor:"rgba(0,0,0,0)"}
-    },
-    config:{responsive:true}
+    });
+  });
+
+  // wire ranges
+  order.forEach(cat=>{
+    const safe = cat.replace(/\s+/g,'-').toLowerCase();
+    wireRangeBar(`range-${safe}`);
+  });
+}
+
+/* Drawers */
+function drawTotal(){
+  const x = MONTHLY.map(r=>r.Data.toISOString().slice(0,10));
+  const {tickvals,ticktext} = evenMonthTicksWithYear(x);
+
+  const barsValor = {
+    x, y: MONTHLY.map(r=>r.Valor), ...barCfg("var(--red)"),
+    name:"Valor (R$)", hovertemplate:"<b>%{x}</b><br>Valor: %{customdata.v}<extra></extra>",
+    customdata: MONTHLY.map(r=>({v:fmtBRL(r.Valor)})), yaxis:"y"
   };
-  Plotly.newPlot("chart-total", fig.data, fig.layout, fig.config);
+  const lineQtd = {
+    x, y: MONTHLY.map(r=>r.Quantidade), ...lineCfg("var(--blue)"),
+    name:"Quantidade (un.)",
+    hovertemplate:"<b>%{x}</b><br>Quantidade: %{customdata.q}<extra></extra>",
+    customdata: MONTHLY.map(r=>({q: Math.round(r.Quantidade).toLocaleString('pt-BR')})), yaxis:"y2"
+  };
 
-  // Wire range bar
-  wireRangeBar("range-total");
+  Plotly.newPlot("chart-total",[barsValor, lineQtd],
+    baseLayout({tickvals,ticktext},"Valor (R$)","Quantidade (un.)"),
+    {responsive:true}
+  );
 
-  // Metrics (simple placeholders; we’ll refine in Phase 2)
-  const m = computeMetrics(monthly);
+  // default range
+  quick("chart-total","TUDO");
+
+  // metrics (Valor)
+  const m = computeMetrics(MONTHLY, "Valor");
   document.getElementById("var-total").textContent = m.varTotal;
   document.getElementById("med-total").textContent = m.medMensal;
   document.getElementById("vol-total").textContent = m.vol;
+}
+function drawCat(){
+  // Build traces for each fixed category (Valor),
+  // plus Quantidade total (linha azul, y2) para referência.
+  const allDates = Array.from(new Set(MONTHLY.map(r=>r.Data.toISOString().slice(0,10)))).sort();
+  const {tickvals,ticktext} = evenMonthTicksWithYear(allDates);
 
-  /* ---------- TODO in Phase 2 ----------
-     - Faturamento por Categoria (multi-line with dual y)
-     - Desempenho por Categoria (collapsibles per category)
-     - Quarterly summary grid + “Último mês” block
-     - Abbreviated month ticks (JAN 24, FEV 24…)
-  -------------------------------------- */
+  const traces = CAT_ORDER.map(cat=>{
+    const series = MONTHLY_BY_CAT[cat]||[];
+    const map = new Map(series.map(r=>[r.Data.toISOString().slice(0,10), r]));
+    const ys = allDates.map(d=> (map.get(d)?.Valor)||0);
+    return {
+      x: allDates, y: ys, ...lineCfg(COLORS[cat] || "var(--orange)"),
+      name: cat+" (R$)", yaxis:"y",
+      hovertemplate:"<b>%{x}</b><br>"+cat+": %{customdata.v}<extra></extra>",
+      customdata: ys.map(v=>({v:fmtBRL(v)}))
+    };
+  });
+
+  const qtdTotal = {
+    x: allDates, y: MONTHLY.map(r=>r.Quantidade),
+    ...lineCfg("var(--blue)"),
+    name:"Quantidade total (un.)", yaxis:"y2",
+    hovertemplate:"<b>%{x}</b><br>Qtd total: %{customdata.q}<extra></extra>",
+    customdata: MONTHLY.map(r=>({q: Math.round(r.Quantidade).toLocaleString('pt-BR')}))
+  };
+
+  Plotly.newPlot("chart-cat",[...traces, qtdTotal],
+    baseLayout({tickvals,ticktext}, "Valor (R$)", "Quantidade (un.)"),
+    {responsive:true}
+  );
+
+  quick("chart-cat","TUDO");
+
+  // Simple metrics (soma de Valor por mês → total geral)
+  const m = computeMetrics(MONTHLY, "Valor");
+  document.getElementById("var-cat").textContent = m.varTotal;
+  document.getElementById("med-cat").textContent = m.medMensal;
+  document.getElementById("vol-cat").textContent = m.vol;
+}
+function drawCategory(chartId){
+  const cat = chartId.replace('chart-','').replace(/-/g,' ');
+  const proper = CAT_ORDER.find(c => c.toLowerCase() === cat);
+  if(!proper) return;
+
+  const series = MONTHLY_BY_CAT[proper]||[];
+  const x = series.map(r=>r.Data.toISOString().slice(0,10));
+  const {tickvals,ticktext} = evenMonthTicksWithYear(x);
+
+  const valor = {
+    x, y: series.map(r=>r.Valor), ...lineCfg("var(--red)"),
+    name:"Valor (R$)", yaxis:"y",
+    hovertemplate:"<b>%{x}</b><br>Valor: %{customdata.v}<extra></extra>",
+    customdata: series.map(r=>({v:fmtBRL(r.Valor)}))
+  };
+  const qtd = {
+    x, y: series.map(r=>r.Quantidade), ...lineCfg("var(--blue)"),
+    name:"Quantidade (un.)", yaxis:"y2",
+    hovertemplate:"<b>%{x}</b><br>Quantidade: %{customdata.q}<extra></extra>",
+    customdata: series.map(r=>({q: Math.round(r.Quantidade).toLocaleString('pt-BR')}))
+  };
+
+  Plotly.newPlot(chartId, [valor, qtd],
+    baseLayout({tickvals,ticktext},"Valor (R$)","Quantidade (un.)"),
+    {responsive:true}
+  );
+
+  quick(chartId,"TUDO");
+
+  const safe = proper.replace(/\s+/g,'-').toLowerCase();
+  const m = computeMetrics(series,"Valor");
+  document.getElementById(`var-${safe}`).textContent = m.varTotal;
+  document.getElementById(`med-${safe}`).textContent = m.medMensal;
+  document.getElementById(`vol-${safe}`).textContent = m.vol;
 }
 
-/* --------- Load CSV via PapaParse ---------- */
-Papa.parse("data/relatorio_faturamento.csv", {
-  download: true,
-  header: true,
-  skipEmptyLines: true,
-  complete: function(res){ initDashboard(res.data); },
-  error: function(err){ alert("Erro ao carregar CSV: " + err); }
-});
+/* Wire range bars */
+["range-total","range-cat"].forEach(wireRangeBar);
+
+/* Boot */
+(async function(){
+  const rows = await loadCSV();
+  RAW_ROWS = normalizeRows(rows);
+
+  // Updated label = último mês existente
+  const maxD = RAW_ROWS.length ? RAW_ROWS[RAW_ROWS.length-1].Data : new Date();
+  document.getElementById("updated").textContent =
+    "Atualizado: " + PT_ABBR[maxD.getMonth()] + "/" + maxD.getFullYear();
+
+  // Aggregations
+  MONTHLY = aggMonthly(RAW_ROWS);
+  const bycat = aggMonthlyByCategory(RAW_ROWS);
+  CATS = bycat.cats;
+  MONTHLY_BY_CAT = bycat.data;
+
+  // Fix order (6 principais) and default color mapping
+  const mainSet = ["Corrediça Oculta","Corrediça Telescópica","Dobradiças","Articuladores","Rodízio","Pulsadores"];
+  const others = CATS.filter(c=>!mainSet.includes(c) && c!=="Acessórios");
+  CAT_ORDER = [...mainSet.filter(c=>CATS.includes(c)), ..."Acessórios" ? ["Acessórios"] : [], ...others];
+
+  // Global date bounds
+  DATA_MIN = MONTHLY[0]?.Data || new Date();
+  DATA_MAX = maxD;
+
+  // Draw primary charts
+  drawTotal();
+  drawCat();
+
+  // Build per-category cards and keep them lazy
+  buildCategoryCards("cats-container");
+
+  // Activate range bars after charts exist
+  wireRangeBar("range-total");
+  wireRangeBar("range-cat");
+})();
 </script>
 </body>
 </html>
