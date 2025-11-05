@@ -1,0 +1,101 @@
+<!-- test-collapse.html | v1.0 | Collapsible Section Test -->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Teste - Desempenho por Linha</title>
+<style>
+  :root {
+    --bg:#dfe1e1; --card:#fff; --accent:#f5b95f;
+    --shadow:0 3px 10px rgba(0,0,0,.08);
+  }
+  body {
+    margin:0; background:var(--bg);
+    font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+  }
+  .wrap {max-width:900px; margin:30px auto; padding:0 16px;}
+  .section {margin:18px 0;}
+  .titlebar {
+    background:#000; color:#fff; padding:12px 16px;
+    border-radius:10px 10px 0 0; display:flex; justify-content:space-between;
+    align-items:center; font-weight:700; cursor:pointer;
+    border-left:6px solid var(--accent);
+  }
+  .caret {font-size:0.9rem; opacity:.9;}
+  .card-wrap {
+    overflow:hidden; transition:max-height .25s ease-in-out;
+    background:var(--card); border-radius:0 0 10px 10px;
+    box-shadow:var(--shadow); margin-bottom:12px;
+  }
+  .card {
+    padding:14px; border-top:1px solid #eee;
+  }
+  /* Parent container allowed to grow freely */
+  #card-cats { max-height:none !important; overflow:visible !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="section">
+    <div class="titlebar" style="cursor:default;">📈 Desempenho por Linha (Teste)</div>
+    <div id="card-cats" class="card-wrap">
+      <div class="card" id="cats-container"><!-- dynamic cards here --></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Example lines (CAT_ORDER in production)
+const CATEGORIES = [
+  "Corrediça Oculta",
+  "Corrediça Telescópica",
+  "Dobradiças",
+  "Articuladores",
+  "Rodízio",
+  "Pulsadores",
+  "Acessórios"
+];
+
+function buildCategoryCards(containerId){
+  const container = document.getElementById(containerId);
+  container.innerHTML = CATEGORIES.map(cat=>{
+    const safe = cat.replace(/\s+/g,'-').toLowerCase();
+    return `
+      <div class="section">
+        <div class="titlebar collapsible" data-target="card-${safe}">
+          <span>${cat}</span><span class="caret">▶</span>
+        </div>
+        <div id="card-${safe}" class="card-wrap" style="max-height:0">
+          <div class="card">
+            <p>Conteúdo de <b>${cat}</b> aqui...</p>
+            <p>Lorem ipsum dolor sit amet, consectetur adipiscing elit. 
+            Sed vel facilisis velit. Ut nec feugiat justo. Donec tincidunt 
+            ultricies metus, non tempor justo. Integer bibendum sapien at 
+            risus sagittis, nec cursus nunc fermentum.</p>
+          </div>
+        </div>
+      </div>`;
+  }).join("");
+
+  // ✅ Wire collapsibles after insertion
+  container.querySelectorAll(".titlebar.collapsible").forEach(tb=>{
+    tb.addEventListener("click", ()=>{
+      const id = tb.getAttribute("data-target");
+      const wrap = document.getElementById(id);
+      const open = (!wrap.style.maxHeight || wrap.style.maxHeight==="0px");
+      wrap.style.maxHeight = open ? "800px" : "0";
+      const caret = tb.querySelector(".caret");
+      if (caret) caret.textContent = open ? "▼" : "▶";
+      if (open){
+        tb.scrollIntoView({behavior:"smooth", block:"start"});
+      }
+    });
+  });
+}
+
+// Build cards at startup
+buildCategoryCards("cats-container");
+</script>
+</body>
+</html>
