@@ -649,42 +649,65 @@ function attachRelayoutSync(divId, labels){
 }
 
 /* ---------------------- Boot ---------------------- */
-(async function(){
-  // Load CSV
-  const res = await fetch('data/relatorio_faturamento.csv');
-  const text = await res.text();
-  const parsed = Papa.parse(text,{header:true,skipEmptyLines:true});
-  RAW_ROWS = normalizeRows(parsed.data);
+async function initDashboard(){
+  try {
+    const res = await fetch('./data/relatorio_faturamento.csv');
+    const text = await res.text();
+    const parsed = Papa.parse(text, { header: true, skipEmptyLines: true });
+    RAW_ROWS = normalizeRows(parsed.data);
 
-  // Updated label
-  const maxD = RAW_ROWS.length ? RAW_ROWS[RAW_ROWS.length-1].Data : new Date();
-  document.getElementById("updated").textContent = "Atualizado: " + PT_ABBR[maxD.getMonth()] + "/" + maxD.getFullYear();
+    if (!RAW_ROWS.length) {
+      console.error("⚠️ CSV loaded but contains no valid rows.");
+      return;
+    }
 
-  // Aggregations
-  MONTHLY = aggMonthly(RAW_ROWS);
-  MONTHLY_LABELS = buildLabelsFromMonthly(MONTHLY);
-  const bycat = aggMonthlyByCategoryAligned(RAW_ROWS, MONTHLY_LABELS);
-  CATS = bycat.cats;
-  MONTHLY_BY_CAT = bycat.data;
+    // Updated label
+    const maxD = RAW_ROWS[RAW_ROWS.length - 1].Data;
+    document.getElementById("updated").textContent =
+      "Atualizado: " + PT_ABBR[maxD.getMonth()] + "/" + maxD.getFullYear();
 
-  // Category order
-  const mainSet = ["Corrediça Oculta","Corrediça Telescópica","Dobradiças","Articuladores","Rodízio","Pulsadores"];
-  const others = CATS.filter(c=>!mainSet.includes(c) && c!=="Acessórios");
-  CAT_ORDER = [...mainSet.filter(c => CATS.includes(c)), ...(CATS.includes("Acessórios")?["Acessórios"]:[]), ...others];
+    // Aggregations
+    MONTHLY = aggMonthly(RAW_ROWS);
+    MONTHLY_LABELS = buildLabelsFromMonthly(MONTHLY);
+    const bycat = aggMonthlyByCategoryAligned(RAW_ROWS, MONTHLY_LABELS);
+    CATS = bycat.cats;
+    MONTHLY_BY_CAT = bycat.data;
 
-  // Draw main sections
-  drawTotal();
-  drawRevenueLines();
-  drawVolumeLines();
+    // Category order
+    const mainSet = [
+      "Corrediça Oculta",
+      "Corrediça Telescópica",
+      "Dobradiças",
+      "Articuladores",
+      "Rodízio",
+      "Pulsadores"
+    ];
+    const others = CATS.filter(c => !mainSet.includes(c) && c !== "Acessórios");
+    CAT_ORDER = [
+      ...mainSet.filter(c => CATS.includes(c)),
+      ...(CATS.includes("Acessórios") ? ["Acessórios"] : []),
+      ...others
+    ];
 
-  // Build desempenho section (lazy)
-  buildCategoryCards("cats-container");
+    // Draw main sections (only after data is ready)
+    drawTotal();
+    drawRevenueLines();
+    drawVolumeLines();
+    buildCategoryCards("cats-container");
 
-  // Wire range bars
-  wireRangeBar('range-total');
-  wireRangeBar('range-fatlin');
-  wireRangeBar('range-vollin');
-})();
+    // Wire range bars
+    wireRangeBar("range-total");
+    wireRangeBar("range-fatlin");
+    wireRangeBar("range-vollin");
+
+    console.log("✅ Dashboard loaded successfully");
+  } catch (err) {
+    console.error("❌ Error loading dashboard:", err);
+  }
+}
+
+// Run only after DOM and scripts are ready
+document.addEventListener("DOMContentLoaded", initDashboard);
 </script>
 </body>
 </html>
