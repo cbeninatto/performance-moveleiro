@@ -273,19 +273,22 @@ function mapCategoria(descRaw){
 function normalizeRows(rows){
   const out=[];
   rows.forEach(o=>{
-    const ano = parseInt(o.Ano,10), mes = parseInt(o.Mes,10);
+    const ano = Number(o.Ano);
+    const mes = Number(o.Mes);
     if(!Number.isFinite(ano)||!Number.isFinite(mes)) return;
     out.push({
       Codigo: (o.Codigo||"").toString().trim(),
       Descricao: (o.Descricao||"").toString().trim(),
       Quantidade: Number(o.Quantidade)||0,
       Valor: Number(o.Valor)||0,
-      Mes: mes, Ano: ano,
+      Mes: mes,
+      Ano: ano,
       Data: new Date(ano, mes-1, 1),
       Categoria: mapCategoria(o.Descricao)
     });
   });
-  out.sort((a,b)=>a.Data-b.Data);
+  // ✅ Sort strictly by year then month (numeric)
+  out.sort((a,b)=> (a.Ano - b.Ano) || (a.Mes - b.Mes));
   return out;
 }
 
