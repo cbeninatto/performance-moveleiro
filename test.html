@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<title>Teste – Visão Geral (Openfield Moveleiro)</title>
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+<style>
+body{font-family:Inter,system-ui,sans-serif;margin:0;padding:20px;background:#f0f0f0}
+#chart{width:100%;height:520px}
+</style>
+</head>
+<body>
+<h2>📊 Teste: Visão Geral</h2>
+<div id="chart"></div>
+
+<script>
+const PT_ABBR=["JAN","FEV","MAR","ABR","MAI","JUN","JUL","AGO","SET","OUT","NOV","DEZ"];
+
+function normalizeRows(rows){
+  const out=[];
+  rows.forEach(o=>{
+    if(!o || !o.Ano || !o.Mes) return; // skip blank lines
+    const ano=Number(String(o.Ano).trim());
+    const mes=Number(String(o.Mes).trim());
+    if(!Number.isFinite(ano)||!Number.isFinite(mes)||mes<1||mes>12) return;
+    out.push({
+      Ano:ano,Mes:mes,
+      Quantidade:Number(o.Quantidade)||0,
+      Valor:Number(o.Valor)||0,
+      Data:new Date(ano,mes-1,1)
+    });
+  });
+  out.sort((a,b)=>(a.Ano-b.Ano)||(a.Mes-b.Mes));
+  // ✅ Keep only the last 10 years from newest
+  if(out.length){
+    const maxYear=out[out.length-1].Ano;
+    const minAllowed=maxYear-10;
+    return out.filter(r=>r.Ano>=minAllowed&&r.Ano<=maxYear);
+  }
+  return out;
+}
+
+function aggMonthly(rows){
+  const map=new Map();
+  rows.forEach(r=>{
+    const key=`${r.Ano}-${String(r.Mes).padStart(2,"0")}`;
+    if(!map.has(key)) map.set(key,{Data:new Date(r.Ano,r.Mes-1,1),Valor:0,Quantidade:0});
+    const m=map.get(key);
+    m.Valor+=r.Valor;
+    m.Quantidade+=r.Quantidade;
+  });
+  return Array.from(map.values()).sort((a,b)=>a.Data-b.Data);
+}
+
+function fmtBRL(n){return "R$ "+n.toLocaleString("pt-BR",{minimumFractionDigits:2});}
+
+async function init(){
+  const res=await fetch("data/relatorio_faturamento.csv?"+Date.now());
+  const text=await res.text();
+  const parsed=Papa.parse(text,{header:true,skipEmptyLines:true});
+  const rows=normalizeRows(parsed.data);
+  console.log(`✅ Loaded ${rows.length} valid rows`);
+  if(!rows.length){alert("Nenhum dado válido encontrado.");return;}
+
+  const monthly=aggMonthly(rows);
+  console.table(monthly.map(m=>({
+    Data:m.Data.toISOString().slice(0,10),
+    Valor:m.Valor,
+    Quantidade:m.Quantidade
+  })));
+
+  const x=monthly.map(r=>r.Data.toISOString().slice(0,10));
+  const tickvals=x;
+  const ticktext=x.map(d=>{
+    const dt=new Date(d);
+    return PT_ABBR[dt.getMonth()]+" "+String(dt.getFullYear()).slice(-2);
+  });
+
+  const barsQtd={
+    x,y:monthly.map(r=>r.Quantidade),
+    type:'bar',
+    marker:{color:'#fb8c00'},
+    name:'Quantidade (un.)',
+    yaxis:'y2',
+    hovertemplate:"<b>Quantidade:</b> %{customdata.q}<extra></extra>",
+    customdata:monthly.map(r=>({q:Math.round(r.Quantidade).toLocaleString('pt-BR')}))
+  };
+
+  const lineVal={
+    x,y:monthly.map(r=>r.Valor),
+    mode:'lines+markers',
+    line:{shape:'spline',color:'#43a047',width:3},
+    marker:{size:6,line:{width:1,color:'#fff'}},
+    name:'Valor (R$)',
+    yaxis:'y',
+    hovertemplate:"<b>Valor:</b> %{customdata.v}<extra></extra>",
+    customdata:monthly.map(r=>({v:fmtBRL(r.Valor)}))
+  };
+
+  const layout={
+    hovermode:'x unified',
+    xaxis:{tickvals,ticktext,showgrid:false},
+    yaxis:{title:'Valor (R$)',gridcolor:'#ddd'},
+    yaxis2:{title:'Quantidade (un.)',overlaying:'y',side:'right'},
+    legend:{orientation:'h',y:-0.3},
+    margin:{t:30,r:40,b:80,l:60},
+    paper_bgcolor:'#fff',plot_bgcolor:'#fff'
+  };
+
+  Plotly.newPlot('chart',[barsQtd,lineVal],layout,{responsive:true});
+}
+
+init();
+</script>
+</body>
+</html>
