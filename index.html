@@ -1,4 +1,4 @@
-<!-- v5.2 | Based on Índices Moveleiro Dashboard v4.9.2 | © Cesar Beninatto -->
+<!-- v5.2.1 | Based on Índices Moveleiro Dashboard v4.9.2 | © Cesar Beninatto -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -13,18 +13,14 @@
     --bg:#dfe1e1; --card:#fff; --text:#000; --accent:#f5b95f; --accent-b:#e5be74;
     --shadow:0 3px 10px rgba(0,0,0,.08);
     /* Índices palette */
-    --red:#e53935;     /* not used now */
-    --blue:#1e88e5;    /* not used now */
     --orange:#fb8c00;  /* Quantidade */
     --green:#43a047;   /* Valor */
-    --purple:#8e24aa;
-    --teal:#00bfa6;
   }
   *{box-sizing:border-box}
   html,body{margin:0;padding:0;background:var(--bg);color:var(--text);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
   .wrap{max-width:1400px;margin:0 auto;padding:18px 16px 56px}
 
-  /* Header (non-sticky) */
+  /* Header */
   .topbar{
     background:#000;color:#fff;border-bottom:4px solid var(--accent);
     padding:12px 16px;border-radius:10px;display:flex;gap:12px;align-items:center;justify-content:space-between;flex-wrap:wrap;
@@ -82,7 +78,7 @@
 <body>
   <div class="wrap">
     <div class="topbar">
-      <div class="tleft">OPENFIELD MOVELEIRO PERFORMANCE — v5.2</div>
+      <div class="tleft">OPENFIELD MOVELEIRO PERFORMANCE — v5.2.1</div>
       <div class="tright">
         <span id="updated" style="color:#fff;opacity:.9">Atualizado: —</span>
         <button class="rbtn export" title="placeholder">Exportar PDF</button>
@@ -92,7 +88,7 @@
     <!-- Visão Geral -->
     <div class="section">
       <div class="titlebar">📊 Visão Geral (Valor e Quantidade)</div>
-      <div class="card-wrap" style="max-height:2000px">
+      <div class="card-wrap" style="max-height:none;overflow:visible">
         <div class="card">
           <div class="rangebar" id="range-total">
             <button class="rbtn" data-target="chart-total" data-range="3M">3M</button>
@@ -120,7 +116,7 @@
     <!-- Faturamento por Linha -->
     <div class="section">
       <div class="titlebar collapsible" data-target="card-fatlin"><span>💰 Faturamento por Linha</span><span class="caret">▶</span></div>
-      <div id="card-fatlin" class="card-wrap" style="max-height:0">
+      <div id="card-fatlin" class="card-wrap" style="max-height:0;overflow:hidden">
         <div class="card">
           <div class="rangebar" id="range-fatlin">
             <button class="rbtn" data-target="chart-fatlin" data-range="3M">3M</button>
@@ -148,7 +144,7 @@
     <!-- Volume por Linha -->
     <div class="section">
       <div class="titlebar collapsible" data-target="card-vollin"><span>📦 Volume por Linha</span><span class="caret">▶</span></div>
-      <div id="card-vollin" class="card-wrap" style="max-height:0">
+      <div id="card-vollin" class="card-wrap" style="max-height:0;overflow:hidden">
         <div class="card">
           <div class="rangebar" id="range-vollin">
             <button class="rbtn" data-target="chart-vollin" data-range="3M">3M</button>
@@ -176,7 +172,7 @@
     <!-- Participação por Linha (%) -->
     <div class="section">
       <div class="titlebar collapsible" data-target="card-share"><span>🧩 Participação por Linha (%)</span><span class="caret">▶</span></div>
-      <div id="card-share" class="card-wrap" style="max-height:0">
+      <div id="card-share" class="card-wrap" style="max-height:0;overflow:hidden">
         <div class="card">
           <div class="rangebar" id="range-share">
             <button class="rbtn" data-target="chart-share" data-range="3M">3M</button>
@@ -201,12 +197,12 @@
       </div>
     </div>
 
-    <!-- Desempenho por Linha (cards) -->
+    <!-- Desempenho por Linha -->
     <div class="section">
       <div class="titlebar collapsible" data-target="card-cats"><span>📈 Desempenho por Linha</span><span class="caret">▶</span></div>
-      <div id="card-cats" class="card-wrap" style="max-height:0">
+      <div id="card-cats" class="card-wrap" style="max-height:0;overflow:hidden">
         <div class="card" id="cats-container">
-          <!-- Cards por linha injetados aqui -->
+          <!-- Cards por linha serão injetados aqui -->
         </div>
       </div>
     </div>
@@ -224,7 +220,7 @@
 /* ====================== Helpers & Globals ====================== */
 const PT_ABBR=["JAN","FEV","MAR","ABR","MAI","JUN","JUL","AGO","SET","OUT","NOV","DEZ"];
 const COLORS = {
-  "Corrediça Oculta":"#43a047",        // keep palette consistent across charts if needed
+  "Corrediça Oculta":"#43a047",
   "Corrediça Telescópica":"#8e24aa",
   "Dobradiças":"#1e88e5",
   "Articuladores":"#fb8c00",
@@ -244,7 +240,7 @@ const CAT_ABBR = {
 const isMobile = () => window.innerWidth < 720;
 
 let RAW_ROWS=[], MONTHLY=[], MONTHLY_BY_CAT={}, CATS=[], CAT_ORDER=[];
-let MONTHLY_LABELS=[]; // iso date strings (YYYY-MM-01) for alignment
+let MONTHLY_LABELS=[]; // aligned YYYY-MM-01
 let DATA_MIN=null, DATA_MAX=null;
 
 /* --------- Utils --------- */
@@ -286,22 +282,7 @@ function normalizeRows(rows){
   return out;
 }
 
-/* Build full month label set from MONTHLY range */
-function buildLabelsFromMonthly(monthly){
-  if(!monthly.length) return [];
-  const min = monthly[0].Data;
-  const max = monthly[monthly.length-1].Data;
-  const labels=[];
-  let cur = new Date(min.getFullYear(), min.getMonth(), 1);
-  const end = new Date(max.getFullYear(), max.getMonth(), 1);
-  while (cur <= end){
-    labels.push(new Date(cur.getFullYear(),cur.getMonth(),1).toISOString().slice(0,10));
-    cur = addMonths(cur,1);
-  }
-  return labels;
-}
-
-/* Aggregations */
+/* Global monthly aggregation */
 function aggMonthly(rows){
   const map = new Map();
   rows.forEach(r=>{
@@ -313,6 +294,24 @@ function aggMonthly(rows){
   });
   return Array.from(map.values()).sort((a,b)=>a.Data-b.Data);
 }
+
+/* Build labels only between the first and last REAL (non-zero) months */
+function buildLabelsFromMonthly(monthly){
+  if (!monthly.length) return [];
+  const firstReal = monthly.find(r => (r.Valor > 0 || r.Quantidade > 0));
+  const lastReal  = [...monthly].reverse().find(r => (r.Valor > 0 || r.Quantidade > 0));
+  if (!firstReal || !lastReal) return [];
+  const labels = [];
+  let cur = new Date(firstReal.Data.getFullYear(), firstReal.Data.getMonth(), 1);
+  const end = new Date(lastReal.Data.getFullYear(), lastReal.Data.getMonth(), 1);
+  while (cur <= end) {
+    labels.push(new Date(cur.getFullYear(), cur.getMonth(), 1).toISOString().slice(0, 10));
+    cur = addMonths(cur, 1);
+  }
+  return labels;
+}
+
+/* Per-category monthly aggregation aligned to global labels */
 function aggMonthlyByCategoryAligned(rows, labelDates){
   const cats = new Set(), byCatRaw={};
   rows.forEach(r=>{
@@ -334,7 +333,7 @@ function aggMonthlyByCategoryAligned(rows, labelDates){
   return {cats:Array.from(cats), data};
 }
 
-/* Ticks: show all months (JAN 25, FEV 25, ...) */
+/* Ticks: show all months */
 function allMonthTicks(datesIso){
   const tickvals=[], ticktext=[];
   datesIso.forEach(iso=>{
@@ -354,7 +353,6 @@ function applyRangeTo(divId, start, end){
 function quick(divId, key){
   const gd = document.getElementById(divId);
   if(!gd) return;
-  const xr = gd.layout.xaxis.range || [DATA_MIN, DATA_MAX];
   let maxD = DATA_MAX, minD = DATA_MIN;
   let start, end = endOfMonth(maxD);
   if (key==='3M') start = startOfMonth(addMonths(maxD, -2));
@@ -388,7 +386,7 @@ function wireRangeBar(barId){
   });
 }
 
-/* Compute metrics for a subset */
+/* Windowing & metrics */
 function windowDataBy(divId, series){
   const gd = document.getElementById(divId);
   if(!gd || !series.length) return series;
@@ -422,69 +420,49 @@ function computeMetrics(rows, key='Valor'){
   };
 }
 
-/* --------- Layout helpers --------- */
-function lineCfg(color){return {mode:'lines+markers', line:{shape:'spline',smoothing:.6,width:isMobile()?2:3,color}, marker:{size:isMobile()?5:7,line:{width:1,color:'#fff'}}};}
-function barCfg(color){return {type:'bar', marker:{color}, opacity:0.95};}
-function baseLayout(xTicks, yTitleL, yTitleR=null){
-  const tf = isMobile()?10:12;
-  const lay = {
-    hovermode:'x unified',
-    legend:{orientation:'h', y:-0.25, font:{size:isMobile()?11:12}},
-    xaxis:{showgrid:false, tickmode:'array', ...xTicks, tickfont:{size:tf}, automargin:true},
-    yaxis:{gridcolor:'#e9ecef', zeroline:false, title:yTitleL, tickfont:{size:tf}, automargin:true},
-    paper_bgcolor:'#fff', plot_bgcolor:'#fff',
-    margin:{t:20,r:30,b:80,l:60},
-    hoverlabel:{bgcolor:'#fff', bordercolor:'#ccc', font:{size:isMobile()?11:12}}
-  };
-  if (yTitleR){
-    lay.yaxis2 = {title:yTitleR, overlaying:'y', side:'right', tickfont:{size:tf}, automargin:true};
-  }
-  return lay;
-}
-
 /* ====================== Drawers ====================== */
 function drawTotal(){
   if(!MONTHLY.length) return;
-  // x labels (all months)
+
   const x = MONTHLY.map(r=>r.Data.toISOString().slice(0,10));
   const {tickvals, ticktext} = allMonthTicks(x);
-
-  const barsQtd = {
-    x,
-    y: MONTHLY.map(r=>r.Quantidade),
-    ...barCfg('var(--orange)'),
-    name:'Quantidade (un.)',
-    yaxis:'y2',
-    hovertemplate:"<b>Quantidade: %{customdata.q}</b><extra></extra>",
-    customdata: MONTHLY.map(r=>({q: Math.round(r.Quantidade).toLocaleString("pt-BR")}))
-  };
 
   const lineValor = {
     x,
     y: MONTHLY.map(r=>r.Valor),
-    ...lineCfg('var(--green)'),
+    mode:'lines+markers',
+    line:{shape:'spline',smoothing:.6,width:3,color:'var(--green)'},
+    marker:{size:7,line:{width:1,color:'#fff'}},
     name:'Valor (R$)',
     yaxis:'y',
     hovertemplate:"<b>%{customdata.v}</b><extra></extra>",
     customdata: MONTHLY.map(r=>({v: fmtBRL(r.Valor)}))
   };
 
-  const layout = baseLayout({tickvals, ticktext}, "Valor (R$)", "Quantidade (un.)");
-  // Fixed ticks as requested: 0 .. 5M step 1M
-  layout.yaxis.tick0 = 0;
-  layout.yaxis.dtick = 1_000_000;
-  layout.yaxis.range = [0, 5_000_000];
+  const barsQtd = {
+    x,
+    y: MONTHLY.map(r=>r.Quantidade),
+    type:'bar',
+    marker:{color:'var(--orange)'},
+    opacity:.95,
+    name:'Quantidade (un.)',
+    yaxis:'y2',
+    hovertemplate:"<b>Quantidade: %{customdata.q}</b><extra></extra>",
+    customdata: MONTHLY.map(r=>({q: Math.round(r.Quantidade).toLocaleString("pt-BR")}))
+  };
 
+  const layout = {
+    ...baseLayout({tickvals, ticktext}, "Valor (R$)", "Quantidade (un.)"),
+    yaxis:{...baseLayout({tickvals, ticktext},"Valor (R$)").yaxis, tick0:0, dtick:1_000_000, range:[0,5_000_000]}
+  };
+
+  // Draw line first so it stays above bars
   Plotly.newPlot('chart-total', [lineValor, barsQtd], layout, {responsive:true});
 
-  // default full range
   DATA_MIN = MONTHLY[0].Data; DATA_MAX = MONTHLY[MONTHLY.length-1].Data;
   Plotly.relayout('chart-total', {'xaxis.range':[startOfMonth(DATA_MIN), endOfMonth(DATA_MAX)]});
 
-  // metrics (Valor over full set initially)
   updateMetricsFor('chart-total');
-
-  // update metrics on zoom/pan
   document.getElementById('chart-total').on('plotly_relayout', ()=>updateMetricsFor('chart-total'));
 }
 
@@ -498,7 +476,9 @@ function drawRevenueLines(){
     const ys = dates.map(d=> (map.get(d)?.Valor)||0);
     const abbr = CAT_ABBR[cat]||cat;
     return {
-      x: dates, y: ys, ...lineCfg(COLORS[cat]||'#666'),
+      x: dates, y: ys, mode:'lines+markers',
+      line:{shape:'spline',smoothing:.6,width:3,color:COLORS[cat]||'#666'},
+      marker:{size:7,line:{width:1,color:'#fff'}},
       name: abbr+" (R$)", yaxis:'y',
       hovertemplate:"<b>"+abbr+": %{customdata.v}</b><extra></extra>",
       customdata: ys.map(v=>({v: fmtBRL(v)}))
@@ -521,7 +501,9 @@ function drawVolumeLines(){
     const ys = dates.map(d=> (map.get(d)?.Quantidade)||0);
     const abbr = CAT_ABBR[cat]||cat;
     return {
-      x: dates, y: ys, ...lineCfg(COLORS[cat]||'#666'),
+      x: dates, y: ys, mode:'lines+markers',
+      line:{shape:'spline',smoothing:.6,width:3,color:COLORS[cat]||'#666'},
+      marker:{size:7,line:{width:1,color:'#fff'}},
       name: abbr+" (un.)", yaxis:'y',
       hovertemplate:"<b>"+abbr+": %{customdata.q} un</b><extra></extra>",
       customdata: ys.map(v=>({q: Math.round(v).toLocaleString('pt-BR')}))
@@ -530,7 +512,7 @@ function drawVolumeLines(){
 
   Plotly.newPlot('chart-vollin', traces, baseLayout({tickvals,ticktext},"Quantidade (un.)"), {responsive:true});
   quick('chart-vollin','TUDO');
-  updateMetricsFor('chart-vollin', /*isValor=*/false);
+  updateMetricsFor('chart-vollin', false);
   document.getElementById('chart-vollin').on('plotly_relayout', ()=>updateMetricsFor('chart-vollin', false));
 }
 
@@ -557,7 +539,7 @@ function drawShare(){
     const abbr = CAT_ABBR[cat]||cat;
     return {
       x: dates, y: ys, type:'bar', marker:{color: COLORS[cat]||'#666'}, name: abbr,
-      hovertemplate:"<b>"+abbr+": %{y:.2f} (R$) • %{customdata.p}%</b><extra></extra>",
+      hovertemplate:"<b>"+abbr+": %{customdata.p}%</b><extra></extra>",
       customdata: ys.map((v,idx)=>{
         const tot = byDateTotals[idx]||0;
         const pct = tot>0 ? (v/tot*100) : 0;
@@ -569,20 +551,16 @@ function drawShare(){
   const layout = baseLayout({tickvals,ticktext}, "Participação no Valor (%)");
   layout.barmode='stack';
   layout.barnorm='percent';
-  layout.yaxis.range=[0,1]; // normalized to 0..1 (100%)
+  layout.yaxis.range=[0,1];
 
   Plotly.newPlot('chart-share', traces, layout, {responsive:true});
   quick('chart-share','TUDO');
 
-  // metrics (last month leader, avg share, simple vol)
   updateShareMetrics();
-
-  document.getElementById('chart-share').on('plotly_relayout', ()=>{
-    updateShareMetrics();
-  });
+  document.getElementById('chart-share').on('plotly_relayout', ()=>updateShareMetrics());
 }
 
-/* --------- Desempenho por Linha (cards) --------- */
+/* Desempenho por Linha (cards) */
 function buildCategoryCards(containerId){
   const container = document.getElementById(containerId);
   const order = CAT_ORDER;
@@ -593,7 +571,7 @@ function buildCategoryCards(containerId){
         <div class="titlebar collapsible" data-target="card-${safe}">
           <span>${cat}</span><span class="caret">▶</span>
         </div>
-        <div id="card-${safe}" class="card-wrap" style="max-height:0">
+        <div id="card-${safe}" class="card-wrap" style="max-height:0;overflow:hidden">
           <div class="card">
             <div class="rangebar" id="range-${safe}">
               <button class="rbtn" data-target="chart-${safe}" data-range="3M">3M</button>
@@ -620,7 +598,6 @@ function buildCategoryCards(containerId){
     `;
   }).join("");
 
-  // collapsibles with auto-height
   container.querySelectorAll('.titlebar.collapsible').forEach(tb=>{
     tb.addEventListener('click', ()=>{
       const id = tb.getAttribute('data-target');
@@ -629,19 +606,17 @@ function buildCategoryCards(containerId){
       if (open){
         const chartId = id.replace('card-','chart-');
         drawCategory(chartId);
-        // compute natural height
-        requestAnimationFrame(()=>{
-          wrap.style.maxHeight = wrap.scrollHeight + 'px';
-        });
+        wrap.style.maxHeight = 'none';
+        wrap.style.overflow = 'visible';
       } else {
         wrap.style.maxHeight = '0';
+        wrap.style.overflow = 'hidden';
       }
       const caret = tb.querySelector('.caret');
       if (caret) caret.textContent = open ? '▼' : '▶';
     });
   });
 
-  // wire ranges
   order.forEach(cat=>{
     const safe = cat.replace(/\s+/g,'-').toLowerCase();
     wireRangeBar(`range-${safe}`);
@@ -657,15 +632,18 @@ function drawCategory(chartId){
   const x = s.map(r=>r.Data.toISOString().slice(0,10));
   const {tickvals,ticktext} = allMonthTicks(x);
 
-  // Valor (line, green) + Quantidade (bars, orange)
   const valor = {
-    x, y: s.map(r=>r.Valor), ...lineCfg('var(--green)'),
+    x, y: s.map(r=>r.Valor),
+    mode:'lines+markers',
+    line:{shape:'spline',smoothing:.6,width:3,color:'var(--green)'},
+    marker:{size:7,line:{width:1,color:'#fff'}},
     name:"Valor (R$)", yaxis:"y",
     hovertemplate:"<b>%{customdata.v}</b><extra></extra>",
     customdata: s.map(r=>({v: fmtBRL(r.Valor)}))
   };
   const qtd = {
-    x, y: s.map(r=>r.Quantidade), ...barCfg('var(--orange)'),
+    x, y: s.map(r=>r.Quantidade),
+    type:'bar', marker:{color:'var(--orange)'}, opacity:.95,
     name:"Quantidade (un.)", yaxis:"y2",
     hovertemplate:"<b>Quantidade: %{customdata.q}</b><extra></extra>",
     customdata: s.map(r=>({q: Math.round(r.Quantidade).toLocaleString('pt-BR')}))
@@ -681,8 +659,77 @@ function drawCategory(chartId){
   document.getElementById(chartId).on('plotly_relayout', ()=>updateMetricsFor(chartId));
 }
 
-/* ====================== Metrics updaters ====================== */
-function updateMetricsFor(divId, isValor=true){
+/* Base layout helper */
+function baseLayout(xTicks, yTitleL, yTitleR=null){
+  const tf = isMobile()?10:12;
+  const lay = {
+    hovermode:'x unified',
+    legend:{orientation:'h', y:-0.25, font:{size:isMobile()?11:12}},
+    xaxis:{showgrid:false, tickmode:'array', ...xTicks, tickfont:{size:tf}, automargin:true},
+    yaxis:{gridcolor:'#e9ecef', zeroline:false, title:yTitleL, tickfont:{size:tf}, automargin:true},
+    paper_bgcolor:'#fff', plot_bgcolor:'#fff',
+    margin:{t:20,r:30,b:80,l:60},
+    hoverlabel:{bgcolor:'#fff', bordercolor:'#ccc', font:{size:isMobile()?11:12}}
+  };
+  if (yTitleR){
+    lay.yaxis2 = {title:yTitleR, overlaying:'y', side:'right', tickfont:{size:tf}, automargin:true};
+  }
+  return lay;
+}
+
+/* Share metrics */
+function updateShareMetrics(){
+  const gd = document.getElementById('chart-share');
+  if(!gd) return;
+  const r = gd.layout?.xaxis?.range;
+  const dates = MONTHLY_LABELS.map(s=>new Date(s));
+  const from = r? new Date(r[0]) : dates[0];
+  const to   = r? new Date(r[1]) : dates[dates.length-1];
+  const idxInRange = MONTHLY_LABELS.map((s,i)=> {
+    const d = dates[i];
+    return (d>=startOfMonth(from)&& d<=endOfMonth(to)) ? i : -1;
+  }).filter(i=>i>=0);
+
+  if(!idxInRange.length) return;
+
+  const avg = {};
+  let lastIdx = idxInRange[idxInRange.length-1];
+  let lastTotals = 0;
+  CAT_ORDER.forEach(cat=>{ avg[cat]=0; });
+  idxInRange.forEach(i=>{
+    let total=0; CAT_ORDER.forEach(cat=>{ total += MONTHLY_BY_CAT[cat]?.[i]?.Valor||0;});
+    if (i===lastIdx) lastTotals = total;
+    CAT_ORDER.forEach(cat=>{
+      const v = MONTHLY_BY_CAT[cat]?.[i]?.Valor||0;
+      avg[cat] += total>0 ? (v/total) : 0;
+    });
+  });
+  CAT_ORDER.forEach(cat=>{ avg[cat] = (avg[cat]/idxInRange.length)*100; });
+
+  let bestCat=null, bestPct=-1;
+  CAT_ORDER.forEach(cat=>{
+    const v = MONTHLY_BY_CAT[cat]?.[lastIdx]?.Valor||0;
+    const pct = lastTotals>0 ? (v/lastTotals*100) : 0;
+    if (pct>bestPct){bestPct=pct; bestCat=cat;}
+  });
+
+  document.getElementById('max-share').textContent =
+    `${CAT_ABBR[bestCat]||bestCat} (${bestPct.toFixed(1).replace('.',',')}%)`;
+
+  let bestAvgCat = Object.entries(avg).sort((a,b)=>b[1]-a[1])[0];
+  if (bestAvgCat){
+    document.getElementById('avg-share').textContent =
+      `${CAT_ABBR[bestAvgCat[0]]||bestAvgCat[0]} (${bestAvgCat[1].toFixed(1).replace('.',',')}%)`;
+  }
+
+  const mean = Object.values(avg).reduce((a,b)=>a+b,0)/Object.values(avg).length;
+  const variance = Object.values(avg).reduce((a,b)=>a+(b-mean)*(b-mean),0)/Object.values(avg).length;
+  const std = Math.sqrt(variance);
+  document.getElementById('vol-share').textContent = std.toFixed(1).replace('.',',')+" %";
+}
+
+/* Metrics updaters */
+function updateMetricsFor(divId){
   if (divId==='chart-total'){
     const subset = windowDataBy('chart-total', MONTHLY);
     const m = computeMetrics(subset,'Valor');
@@ -715,60 +762,6 @@ function updateMetricsFor(divId, isValor=true){
   }
 }
 
-function updateShareMetrics(){
-  const gd = document.getElementById('chart-share');
-  if(!gd) return;
-  const r = gd.layout?.xaxis?.range;
-  const dates = MONTHLY_LABELS.map(s=>new Date(s));
-  const from = r? new Date(r[0]) : dates[0];
-  const to   = r? new Date(r[1]) : dates[dates.length-1];
-  const idxInRange = MONTHLY_LABELS.map((s,i)=> {
-    const d = dates[i];
-    return (d>=startOfMonth(from)&& d<=endOfMonth(to)) ? i : -1;
-  }).filter(i=>i>=0);
-
-  if(!idxInRange.length) return;
-
-  // average participation per cat in window
-  const avg = {};
-  let lastIdx = idxInRange[idxInRange.length-1];
-  let lastTotals = 0;
-  CAT_ORDER.forEach(cat=>{
-    avg[cat]=0;
-  });
-  idxInRange.forEach(i=>{
-    let total=0; CAT_ORDER.forEach(cat=>{ total += MONTHLY_BY_CAT[cat]?.[i]?.Valor||0;});
-    if (i===lastIdx) lastTotals = total;
-    CAT_ORDER.forEach(cat=>{
-      const v = MONTHLY_BY_CAT[cat]?.[i]?.Valor||0;
-      avg[cat] += total>0 ? (v/total) : 0;
-    });
-  });
-  CAT_ORDER.forEach(cat=>{ avg[cat] = (avg[cat]/idxInRange.length)*100; });
-
-  // last month leader
-  let bestCat=null, bestPct=-1;
-  CAT_ORDER.forEach(cat=>{
-    const v = MONTHLY_BY_CAT[cat]?.[lastIdx]?.Valor||0;
-    const pct = lastTotals>0 ? (v/lastTotals*100) : 0;
-    if (pct>bestPct){bestPct=pct; bestCat=cat;}
-  });
-
-  document.getElementById('max-share').textContent =
-    `${CAT_ABBR[bestCat]||bestCat} (${bestPct.toFixed(1).replace('.',',')}%)`;
-  // “avg participation in window” show top cat avg
-  let bestAvgCat = Object.entries(avg).sort((a,b)=>b[1]-a[1])[0];
-  if (bestAvgCat){
-    document.getElementById('avg-share').textContent =
-      `${CAT_ABBR[bestAvgCat[0]]||bestAvgCat[0]} (${bestAvgCat[1].toFixed(1).replace('.',',')}%)`;
-  }
-  // simple “volatility” = stddev of shares across cats (window)
-  const mean = Object.values(avg).reduce((a,b)=>a+b,0)/Object.values(avg).length;
-  const variance = Object.values(avg).reduce((a,b)=>a+(b-mean)*(b-mean),0)/Object.values(avg).length;
-  const std = Math.sqrt(variance);
-  document.getElementById('vol-share').textContent = std.toFixed(1).replace('.',',')+" %";
-}
-
 /* ====================== Boot ====================== */
 async function initDashboard(){
   const overlay = document.getElementById("loading-overlay");
@@ -779,61 +772,66 @@ async function initDashboard(){
     RAW_ROWS = normalizeRows(parsed.data);
 
     if (!RAW_ROWS.length) {
-      console.error("⚠️ CSV loaded but contains no valid rows.");
+      console.error("⚠️ CSV carregado sem linhas válidas.");
       return;
     }
 
-    // Updated label
-    const maxD = RAW_ROWS[RAW_ROWS.length - 1].Data;
-    document.getElementById("updated").textContent =
-      "Atualizado: " + PT_ABBR[maxD.getMonth()] + "/" + maxD.getFullYear();
-
-    // Aggregations
+    // Aggregations + labels bounded by real data only
     MONTHLY = aggMonthly(RAW_ROWS);
-    MONTHLY_LABELS = buildLabelsFromMonthly(MONTHLY);
+    MONTHLY_LABELS = buildLabelsFromMonthly(MONTHLY); // ✅ first..last month with real data
     const bycat = aggMonthlyByCategoryAligned(RAW_ROWS, MONTHLY_LABELS);
     CATS = bycat.cats;
     MONTHLY_BY_CAT = bycat.data;
+
+    // Updated label (last real month)
+    const lastIdx = MONTHLY_LABELS.length-1;
+    const maxD = new Date(MONTHLY_LABELS[lastIdx]);
+    document.getElementById("updated").textContent =
+      "Atualizado: " + PT_ABBR[maxD.getMonth()] + "/" + maxD.getFullYear();
 
     // Category order
     const mainSet = ["Corrediça Oculta","Corrediça Telescópica","Dobradiças","Articuladores","Rodízio","Pulsadores"];
     const others = CATS.filter(c => !mainSet.includes(c) && c!=="Acessórios");
     CAT_ORDER = [...mainSet.filter(c=>CATS.includes(c)), ...(CATS.includes("Acessórios")?["Acessórios"]:[]), ...others];
 
+    // Global date bounds (for quick ranges)
+    DATA_MIN = new Date(MONTHLY_LABELS[0]); DATA_MAX = new Date(MONTHLY_LABELS[lastIdx]);
+
     // Draw sections
     drawTotal();
     drawRevenueLines();
     drawVolumeLines();
-    drawShare();              // NEW stacked % bars
+    drawShare();
     buildCategoryCards("cats-container");
 
     // Wire range bars
     ["range-total","range-fatlin","range-vollin","range-share"].forEach(wireRangeBar);
 
-    // Fade out loading overlay
+    // Collapsibles (top level) with natural height (no cutoff)
+    document.querySelectorAll('.titlebar.collapsible').forEach(el=>{
+      el.addEventListener('click', ()=>{
+        const id = el.getAttribute('data-target');
+        const wrap = document.getElementById(id);
+        const open = (!wrap.style.maxHeight || wrap.style.maxHeight==='0px');
+        if (open){
+          wrap.style.maxHeight = 'none';
+          wrap.style.overflow = 'visible';
+        } else {
+          wrap.style.maxHeight = '0';
+          wrap.style.overflow = 'hidden';
+        }
+        const caret = el.querySelector('.caret');
+        if (caret) caret.textContent = open ? '▼' : '▶';
+      });
+    });
+
+    // Fade out loader
     setTimeout(()=> overlay.classList.add('hidden'), 600);
-    console.log("✅ Dashboard loaded successfully");
   } catch (err) {
-    console.error("❌ Error loading dashboard:", err);
+    console.error("❌ Erro ao carregar:", err);
     if (overlay) overlay.querySelector(".loading-text").textContent = "Erro ao carregar dados.";
   }
 }
-
-/* Collapsibles (top-level) with auto-height */
-document.querySelectorAll('.titlebar.collapsible').forEach(el=>{
-  el.addEventListener('click', ()=>{
-    const id = el.getAttribute('data-target');
-    const wrap = document.getElementById(id);
-    const open = (!wrap.style.maxHeight || wrap.style.maxHeight==='0px');
-    if (open){
-      requestAnimationFrame(()=>{ wrap.style.maxHeight = wrap.scrollHeight + 'px'; });
-    } else {
-      wrap.style.maxHeight = '0';
-    }
-    const caret = el.querySelector('.caret');
-    if (caret) caret.textContent = open ? '▼' : '▶';
-  });
-});
 
 document.addEventListener("DOMContentLoaded", initDashboard);
 </script>
