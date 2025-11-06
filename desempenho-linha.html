@@ -1,78 +1,87 @@
-<!-- test-collapse-data.html | v1.0 | Desempenho por Linha (CSV + Collapsibles) -->
+<!-- test-visao-por-linha-v3.html | v3.0 | Visão por Linha (CSV + Filtros por Card + Métricas) -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
 <meta charset="utf-8"/>
 <meta name="viewport" content="width=device-width,initial-scale=1"/>
-<title>Teste - Desempenho por Linha (CSV)</title>
+<title>Visão por Linha — Teste v3</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
 <style>
   :root{
-    --bg:#dfe1e1; --card:#fff; --accent:#f5b95f;
+    --bg:#dfe1e1; --card:#fff; --accent:#f5b95f; --ink:#000; --muted:#666;
     --shadow:0 6px 18px rgba(0,0,0,.10);
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  body{margin:0;background:var(--bg);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#111}
   .wrap{max-width:1100px;margin:28px auto;padding:0 16px}
-  .toolbar{
-    display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:8px 0 18px
-  }
-  .toolbar .cardish{
-    background:var(--card); box-shadow:var(--shadow); border-radius:12px; padding:10px 12px; display:flex; gap:8px; align-items:center
-  }
-  label{font-weight:600}
-  select{padding:6px 8px;border:1px solid #ddd;border-radius:8px;background:#fff}
+  h2{margin:0 0 8px}
   .section{margin:16px 0}
+  /* Barra preta com faixa dourada à esquerda (igual Visão/Participação) */
   .titlebar{
-    background:#000;color:#fff;padding:12px 16px;border-radius:10px 10px 0 0;
-    display:flex;justify-content:space-between;align-items:center;font-weight:700;cursor:pointer;
-    border-left:6px solid var(--accent)
+    background:var(--ink); color:#fff; padding:12px 16px; border-radius:10px 10px 0 0;
+    display:flex;justify-content:space-between;align-items:center; font-weight:700; cursor:pointer;
+    border-left:6px solid var(--accent);
   }
+  .titlebar.static{cursor:default}
   .caret{font-size:.9rem;opacity:.9}
   .card-wrap{
-    overflow:hidden;transition:max-height .25s ease-in-out;background:var(--card);border-radius:0 0 10px 10px;box-shadow:var(--shadow);margin-bottom:12px
+    overflow:hidden; transition:max-height .25s ease-in-out;
+    background:var(--card); border-radius:0 0 10px 10px; box-shadow:var(--shadow); margin-bottom:12px;
   }
   .card{padding:14px;border-top:1px solid #eee}
-  /* Parent container can grow freely */
-  #card-cats{max-height:none!important;overflow:visible!important}
-  .muted{opacity:.85;font-weight:600}
+  /* Container pai pode crescer livremente (evita cortes) */
+  #card-cats{max-height:none!important; overflow:visible!important}
+
+  /* Barra de filtros por card */
+  .toolbar{
+    display:flex; flex-wrap:wrap; gap:10px; align-items:center; justify-content:space-between;
+    margin:0 0 12px;
+  }
+  .toolbar .left, .toolbar .right{display:flex; flex-wrap:wrap; gap:10px; align-items:center}
+  .btn-group{
+    display:flex; gap:6px; background:#fff; border:1px solid #eee; border-radius:10px; padding:6px;
+  }
+  .btn{
+    padding:6px 10px; border-radius:8px; border:1px solid #ddd; background:#fff; font-weight:700; cursor:pointer;
+  }
+  .btn.primary{background:#000; color:#fff; border-color:#000}
+  .field{
+    display:flex; gap:6px; align-items:center; background:#fff; border:1px solid #eee; border-radius:10px; padding:6px 8px;
+  }
+  .field label{font-weight:700}
+  select{padding:6px 8px;border:1px solid #ddd;border-radius:8px;background:#fff}
+
+  /* Métricas (6 blocos) */
+  .metrics{
+    display:grid; grid-template-columns: repeat(3, minmax(180px,1fr)); gap:10px; margin:8px 0 12px;
+  }
+  .metric{
+    background:#fff; border:1px solid #eee; border-left:6px solid var(--accent);
+    border-radius:10px; padding:8px 10px; display:flex; flex-direction:column; gap:2px;
+  }
+  .metric .label{font-size:.86rem; color:#333; font-weight:600}
+  .metric .value{font-size:1.05rem; font-weight:800}
+
+  /* Placeholder quando não há dados no período */
+  .nodata{padding:10px; background:#fafafa; border:1px dashed #ddd; border-radius:8px; color:var(--muted)}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h2 style="margin:0 0 8px">📈 Desempenho por Linha — Teste (CSV)</h2>
-  <div class="toolbar">
-    <div class="cardish">
-      <label for="metric">Métrica:</label>
-      <select id="metric">
-        <option value="Valor" selected>Valor (R$)</option>
-        <option value="Quantidade">Quantidade (pcs)</option>
-      </select>
-    </div>
-    <div class="cardish">
-      <label for="from">Período:</label>
-      <select id="from"></select>
-      <span class="muted">até</span>
-      <select id="to"></select>
-    </div>
-    <div class="cardish">
-      <button id="apply" style="padding:8px 12px;border-radius:10px;border:0;background:#000;color:#fff;font-weight:700">Aplicar</button>
-    </div>
-  </div>
-
+  <h2>📈 Visão por Linha — Teste v3 (CSV + Filtros por Card + Métricas)</h2>
   <div class="section">
-    <div class="titlebar" style="cursor:default;">Desempenho por Linha (colapsável)</div>
+    <div class="titlebar static">Visão por Linha (colapsável)</div>
     <div id="card-cats" class="card-wrap">
-      <div class="card" id="cats-container"><!-- dynamic cards here --></div>
+      <div class="card" id="cats-container"><!-- cards dinâmicos --></div>
     </div>
   </div>
 </div>
 
 <script>
-// ====== CONFIG ======
-const CSV_URL = "data/relatorio_faturamento.csv"; // same repo
+// ========================= CONFIG =========================
+const CSV_URL = "data/relatorio_faturamento.csv"; // mesmo repositório
 const CATEGORIES = [
   "Corrediça Oculta",
   "Corrediça Telescópica",
@@ -83,7 +92,11 @@ const CATEGORIES = [
   "Acessórios"
 ];
 
-// User-provided mapping (unchanged)
+// Cores (mantendo a linguagem visual): faturamento dourado, volume preto
+const COLOR_FAT = "#f5b95f";
+const COLOR_VOL = "#000000";
+
+// Mapeamento fornecido
 function mapCategoria(d){
   d=(d||'').toUpperCase();
   if(d.includes('ESCOND')||d.includes('SLIM MV119')||d.includes('DREAM BOX')||d.includes('OPENBOX')||(d.includes('GAVETA')&&(d.includes('BOX')||d.includes('OPENBOX'))))return'Corrediça Oculta';
@@ -95,29 +108,22 @@ function mapCategoria(d){
   return'Acessórios';
 }
 
-// ====== DOM refs ======
-const metricSel = document.getElementById("metric");
-const fromSel   = document.getElementById("from");
-const toSel     = document.getElementById("to");
-const applyBtn  = document.getElementById("apply");
+// ========================= STATE =========================
+let ALL_ROWS = []; // linhas normalizadas
 
-// ====== State ======
-let rawRows = [];     // original CSV rows
-let monthKeys = [];   // all available months in CSV as 'YYYY-MM'
-let minKey="", maxKey="";
-
-// ====== Utils ======
-const z2 = n=> String(n).padStart(2,"0");
-function keyToLabel(key){ // 'YYYY-MM' -> 'MM/YYYY'
-  const [y,m] = key.split("-");
-  return `${m}/${y}`;
-}
-function ymToKey(Y, M){ return `${Y}-${z2(M)}`; }
-function parseNumber(x){
-  // handle commas/points if they ever appear
+// ========================= UTILS =========================
+const z2 = n => String(n).padStart(2,"0");
+function ymToKey(Y,M){ return `${Y}-${z2(M)}`; }
+function keyToLabel(key){ const [y,m]=key.split("-"); return `${m}/${y}`; }
+function parseNumberLoose(x){
   if (typeof x === "number") return x;
-  if (!x) return 0;
-  return Number(String(x).replace(/\./g,'').replace(',','.')) || 0;
+  if (x == null) return 0;
+  // remove espaços, milhar ".", troca vírgula por ponto
+  const s = String(x).trim().replace(/\s+/g,'');
+  if (!/^-?\d[\d.,]*$/.test(s)) return Number(s) || 0;
+  const normalized = s.replace(/\./g,'').replace(',', '.');
+  const n = Number(normalized);
+  return isFinite(n) ? n : 0;
 }
 function* monthRange(startKey, endKey){
   let [ys, ms] = startKey.split("-").map(Number);
@@ -125,75 +131,69 @@ function* monthRange(startKey, endKey){
   while (ys < ye || (ys===ye && ms <= me)){
     yield ymToKey(ys, ms);
     ms++;
-    if (ms === 13){ ms = 1; ys++; }
+    if (ms===13){ ms=1; ys++; }
   }
 }
-
-// ====== Build UI ======
-function populatePeriodSelectors(){
-  fromSel.innerHTML = "";
-  toSel.innerHTML = "";
-  monthKeys.forEach(k=>{
-    const opt1 = document.createElement("option");
-    opt1.value = k; opt1.textContent = keyToLabel(k);
-    const opt2 = opt1.cloneNode(true);
-    fromSel.appendChild(opt1);
-    toSel.appendChild(opt2);
-  });
-  // default: last 12 months if possible
-  let defFrom = minKey, defTo = maxKey;
-  const all = [...monthKeys];
-  if (all.length > 12){
-    defFrom = all[all.length-12];
-  }
-  fromSel.value = defFrom;
-  toSel.value   = defTo;
+function uniqueSorted(arr){ return Array.from(new Set(arr)).sort(); }
+function brMoney(n){ return new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL',maximumFractionDigits:0}).format(n||0); }
+function brInt(n){ return new Intl.NumberFormat('pt-BR',{maximumFractionDigits:0}).format(n||0); }
+function brPerc(n){ return (isFinite(n)? n : 0).toLocaleString('pt-BR',{maximumFractionDigits:1}) + '%'; }
+function stdev(arr){
+  const n = arr.length; if (!n) return 0;
+  const mean = arr.reduce((a,b)=>a+b,0)/n;
+  const v = arr.reduce((a,b)=>a+(b-mean)*(b-mean),0)/n;
+  return Math.sqrt(v);
 }
 
-// ====== Data processing ======
+// ========================= DATA =========================
 function normalizeRows(csvRows){
-  // Expect columns: Codigo, Descricao, Quantidade, Valor, Mes, Ano
+  // Espera: Codigo, Descricao, Quantidade, Valor, Mes, Ano
   return csvRows.map(r=>{
-    const ano  = parseInt(r.Ano,10);
-    const mes  = parseInt(r.Mes,10);
-    const key  = ymToKey(ano, mes);
+    // Headers podem vir com espaços/maiúsculas diversos; normalizamos:
+    const Codigo = r.Codigo ?? r.codigo ?? r.CÓDIGO ?? r.cod ?? r.Cod ?? "";
+    const Descricao = r.Descricao ?? r.DESCRICAO ?? r.DESCRIÇÃO ?? r.descricao ?? "";
+    const Quantidade = parseNumberLoose(r.Quantidade ?? r.Qtd ?? r.quantidade);
+    const Valor = parseNumberLoose(r.Valor ?? r.valor);
+    const Mes = parseInt(r.Mes ?? r.mes, 10);
+    const Ano = parseInt(r.Ano ?? r.ano, 10);
+
+    const ano = isFinite(Ano) ? Ano : 0;
+    const mes = isFinite(Mes) ? Mes : 0;
+    const key = (ano>0 && mes>0 && mes<=12) ? ymToKey(ano, mes) : "";
+
     return {
-      codigo: r.Codigo,
-      descricao: r.Descricao || "",
-      quantidade: parseNumber(r.Quantidade),
-      valor: parseNumber(r.Valor),
-      mes: mes, ano: ano, key: key,
-      categoria: mapCategoria(r.Descricao||"")
+      codigo: Codigo,
+      descricao: Descricao || "",
+      quantidade: isFinite(Quantidade)? Quantidade : 0,
+      valor: isFinite(Valor)? Valor : 0,
+      mes, ano, key,
+      categoria: mapCategoria(Descricao||"")
     };
-  }).filter(r=> r.ano>0 && r.mes>0 && r.mes<=12);
+  }).filter(r => r.key);
 }
 
-function computeMonthKeys(rows){
-  const set = new Set(rows.map(r=>r.key));
-  const arr = Array.from(set).sort();
-  return arr;
+function keysForCategory(rows, category){
+  return uniqueSorted(rows.filter(r=>r.categoria===category).map(r=>r.key));
 }
 
-function aggregateByCategoryMonthly(rows, startKey, endKey, metric){
-  // returns: { "Categoria": { x: [keys], y: [values] }, ... }
+function aggregateCategoryMonthly(rows, category, startKey, endKey){
   const keys = Array.from(monthRange(startKey, endKey));
-  const result = {};
-  CATEGORIES.forEach(cat=>{
-    result[cat] = { x: keys.slice(), y: keys.map(_=>0) };
-  });
-  // group sums
+  const x = keys.slice();
+  const fatur = keys.map(_=>0);
+  const vol   = keys.map(_=>0);
   rows.forEach(r=>{
+    if (r.categoria!==category) return;
     if (r.key < startKey || r.key > endKey) return;
-    const cat = CATEGORIES.includes(r.categoria)? r.categoria : 'Acessórios';
-    const idx = result[cat].x.indexOf(r.key);
+    const idx = x.indexOf(r.key);
     if (idx>=0){
-      result[cat].y[idx] += (metric==="Quantidade" ? r.quantidade : r.valor);
+      fatur[idx] += r.valor;
+      vol[idx]   += r.quantidade;
     }
   });
-  return result;
+  return { x, fatur, vol };
 }
 
-// ====== Charts & UI ======
+// ========================= UI (Cards) =========================
 function buildCategoryCards(containerId, categories){
   const container = document.getElementById(containerId);
   container.innerHTML = categories.map(cat=>{
@@ -205,20 +205,54 @@ function buildCategoryCards(containerId, categories){
         </div>
         <div id="card-${safe}" class="card-wrap" style="max-height:0">
           <div class="card">
-            <div id="chart-${safe}" style="width:100%;height:360px"></div>
+            <div class="toolbar">
+              <div class="left">
+                <div class="btn-group" id="btns-${safe}">
+                  <button class="btn" data-range="3M">3M</button>
+                  <button class="btn" data-range="6M">6M</button>
+                  <button class="btn" data-range="1A">1A</button>
+                  <button class="btn" data-range="5A">5A</button>
+                  <button class="btn" data-range="ALL">Tudo</button>
+                </div>
+              </div>
+              <div class="right">
+                <div class="field">
+                  <label>Início:</label>
+                  <select id="from-month-${safe}"></select>
+                  <select id="from-year-${safe}"></select>
+                </div>
+                <div class="field">
+                  <label>Fim:</label>
+                  <select id="to-month-${safe}"></select>
+                  <select id="to-year-${safe}"></select>
+                </div>
+                <button class="btn primary" id="apply-${safe}">Aplicar</button>
+              </div>
+            </div>
+
+            <div class="metrics" id="metrics-${safe}">
+              <div class="metric"><div class="label">Média Mensal Faturamento</div><div class="value" id="mfat-${safe}">—</div></div>
+              <div class="metric"><div class="label">Variação Total Faturamento</div><div class="value" id="vfat-${safe}">—</div></div>
+              <div class="metric"><div class="label">Volatilidade Faturamento</div><div class="value" id="sfat-${safe}">—</div></div>
+              <div class="metric"><div class="label">Média Mensal Volume</div><div class="value" id="mvol-${safe}">—</div></div>
+              <div class="metric"><div class="label">Variação Total Volume</div><div class="value" id="vvol-${safe}">—</div></div>
+              <div class="metric"><div class="label">Volatilidade Volume</div><div class="value" id="svol-${safe}">—</div></div>
+            </div>
+
+            <div id="chart-${safe}" style="width:100%;height:420px"></div>
+            <div id="nodata-${safe}" class="nodata" style="display:none">Sem dados neste período.</div>
           </div>
         </div>
       </div>`;
   }).join("");
 
-  // wire collapsibles
+  // Colapsáveis
   container.querySelectorAll(".titlebar.collapsible").forEach(tb=>{
     tb.addEventListener("click", ()=>{
       const id = tb.getAttribute("data-target");
       const wrap = document.getElementById(id);
       const open = (!wrap.style.maxHeight || wrap.style.maxHeight==="0px");
       if (open){
-        // set to content height
         wrap.style.maxHeight = wrap.scrollHeight + "px";
       } else {
         wrap.style.maxHeight = "0";
@@ -232,96 +266,275 @@ function buildCategoryCards(containerId, categories){
   });
 }
 
-function drawCharts(seriesByCat, metricLabel){
-  Object.entries(seriesByCat).forEach(([cat, ser])=>{
-    const safe = cat.replace(/\s+/g,'-').toLowerCase();
-    const el = document.getElementById(`chart-${safe}`);
-    if (!el) return;
+function monthList(){ return [...Array(12)].map((_,i)=>({val:i+1, label:z2(i+1)})); }
 
-    const xLabels = ser.x.map(keyToLabel);
-    const trace = {
-      x: xLabels,
-      y: ser.y,
-      mode: 'lines+markers',
-      type: 'scatter',
-      name: cat
-    };
-    const layout = {
-      margin: {l:50,r:20,t:10,b:40},
-      xaxis: { tickangle: -45 },
-      yaxis: { title: metricLabel, automargin:true },
-      showlegend: false
-    };
-    Plotly.react(el, [trace], layout, {responsive:true});
-  });
+function populateMonthYearSelectors(category){
+  const safe = category.replace(/\s+/g,'-').toLowerCase();
+  const fromM = document.getElementById(`from-month-${safe}`);
+  const fromY = document.getElementById(`from-year-${safe}`);
+  const toM   = document.getElementById(`to-month-${safe}`);
+  const toY   = document.getElementById(`to-year-${safe}`);
 
-  // After drawing, ensure every opened card height matches content
+  const keys = keysForCategory(ALL_ROWS, category);
+  if (!keys.length){
+    [fromM, fromY, toM, toY].forEach(el=> el.innerHTML = "");
+    return {minKey:"", maxKey:""};
+  }
+  // anos disponíveis
+  const years = uniqueSorted(keys.map(k=>+k.split("-")[0]));
+  // meses 01..12
+  const months = monthList();
+
+  const fill = (sel, items, getV, getL)=>{
+    sel.innerHTML = ""; items.forEach(it=>{
+      const o = document.createElement("option");
+      o.value = getV(it); o.textContent = getL(it);
+      sel.appendChild(o);
+    });
+  };
+  fill(fromM, months, m=>m.val, m=>m.label);
+  fill(toM,   months, m=>m.val, m=>m.label);
+  fill(fromY, years,  y=>y,     y=>y);
+  fill(toY,   years,  y=>y,     y=>y);
+
+  const minKey = keys[0];
+  const maxKey = keys[keys.length-1];
+  // padrão: últimos 12 meses (se houver)
+  let [yf, mf] = minKey.split("-").map(Number);
+  let [yt, mt] = maxKey.split("-").map(Number);
+  if (keys.length>12){
+    // retrocede 11 meses a partir do fim
+    const startIdx = Math.max(0, keys.length - 12);
+    [yf, mf] = keys[startIdx].split("-").map(Number);
+  }
+  fromM.value = mf; fromY.value = yf;
+  toM.value   = mt; toY.value   = yt;
+
+  return {minKey, maxKey};
+}
+
+function currentRangeFromSelectors(category){
+  const safe = category.replace(/\s+/g,'-').toLowerCase();
+  const fromM = +document.getElementById(`from-month-${safe}`).value;
+  const fromY = +document.getElementById(`from-year-${safe}`).value;
+  const toM   = +document.getElementById(`to-month-${safe}`).value;
+  const toY   = +document.getElementById(`to-year-${safe}`).value;
+  let startKey = ymToKey(fromY, fromM);
+  let endKey   = ymToKey(toY, toM);
+  if (startKey > endKey){ // corrige inversão
+    [startKey, endKey] = [endKey, startKey];
+  }
+  return {startKey, endKey};
+}
+
+function setQuickRange(category, tag){
+  const safe = category.replace(/\s+/g,'-').toLowerCase();
+  const keys = keysForCategory(ALL_ROWS, category);
+  if (!keys.length) return;
+
+  const maxKey = keys[keys.length-1];
+  let [y, m] = maxKey.split("-").map(Number);
+
+  function minusMonths(y,m,k){
+    let total = y*12 + (m-1) - k;
+    let ny = Math.floor(total/12);
+    let nm = (total % 12) + 1; if (nm<=0){ nm+=12; ny--; }
+    return {y:ny, m:nm};
+  }
+
+  let kBack = null;
+  if (tag==="3M") kBack = 2;
+  else if (tag==="6M") kBack = 5;
+  else if (tag==="1A") kBack = 11;
+  else if (tag==="5A") kBack = 59;
+
+  let startKey, endKey;
+  if (tag==="ALL"){
+    startKey = keys[0];
+    endKey   = maxKey;
+  } else {
+    const {y:ys, m:ms} = minusMonths(y, m, Math.min(kBack, keys.length-1));
+    startKey = ymToKey(ys, ms);
+    endKey   = maxKey;
+    // se o startKey for anterior ao primeiro disponível, ajusta
+    if (startKey < keys[0]) startKey = keys[0];
+  }
+
+  const [ys, ms] = startKey.split("-").map(Number);
+  const [ye, me] = endKey.split("-").map(Number);
+  document.getElementById(`from-month-${safe}`).value = ms;
+  document.getElementById(`from-year-${safe}`).value  = ys;
+  document.getElementById(`to-month-${safe}`).value   = me;
+  document.getElementById(`to-year-${safe}`).value    = ye;
+}
+
+// Métricas
+function computeMetrics(series){
+  const fat = series.fatur;
+  const vol = series.vol;
+
+  const meanFat = fat.length ? fat.reduce((a,b)=>a+b,0)/fat.length : 0;
+  const meanVol = vol.length ? vol.reduce((a,b)=>a+b,0)/vol.length : 0;
+
+  function pctChange(arr){
+    const firstIdx = arr.findIndex(v=>v!==0);
+    const lastIdx  = arr.length-1 - [...arr].reverse().findIndex(v=>v!==0);
+    if (firstIdx<0 || lastIdx<0 || firstIdx>lastIdx) return NaN;
+    const a = arr[firstIdx], b = arr[lastIdx];
+    if (a===0) return NaN;
+    return ((b-a)/Math.abs(a))*100;
+  }
+  const varFat = pctChange(fat);
+  const varVol = pctChange(vol);
+
+  const sdFat = stdev(fat);
+  const sdVol = stdev(vol);
+
+  return {
+    meanFat, varFat, sdFat,
+    meanVol, varVol, sdVol
+  };
+}
+
+function renderMetrics(category, metrics){
+  const safe = category.replace(/\s+/g,'-').toLowerCase();
+  const mf = document.getElementById(`mfat-${safe}`);
+  const vf = document.getElementById(`vfat-${safe}`);
+  const sf = document.getElementById(`sfat-${safe}`);
+  const mv = document.getElementById(`mvol-${safe}`);
+  const vv = document.getElementById(`vvol-${safe}`);
+  const sv = document.getElementById(`svol-${safe}`);
+
+  mf.textContent = brMoney(metrics.meanFat);
+  vf.textContent = isNaN(metrics.varFat) ? '—' : brPerc(metrics.varFat);
+  sf.textContent = brMoney(metrics.sdFat);
+
+  mv.textContent = brInt(metrics.meanVol);
+  vv.textContent = isNaN(metrics.varVol) ? '—' : brPerc(metrics.varVol);
+  sv.textContent = brInt(metrics.sdVol);
+}
+
+function drawCategoryChart(category){
+  const safe = category.replace(/\s+/g,'-').toLowerCase();
+  const chartEl = document.getElementById(`chart-${safe}`);
+  const noDataEl= document.getElementById(`nodata-${safe}`);
+
+  const {startKey, endKey} = currentRangeFromSelectors(category);
+  const series = aggregateCategoryMonthly(ALL_ROWS, category, startKey, endKey);
+
+  const hasData = series.fatur.some(v=>v!==0) || series.vol.some(v=>v!==0);
+  if (!hasData){
+    Plotly.purge(chartEl);
+    noDataEl.style.display = "block";
+    adjustOpenHeights();
+    return;
+  }
+  noDataEl.style.display = "none";
+
+  const traceFat = {
+    x: series.x.map(keyToLabel),
+    y: series.fatur,
+    mode: 'lines+markers',
+    type: 'scatter',
+    name: 'Faturamento',
+    line: {color: COLOR_FAT, width: 3},
+    marker: {color: COLOR_FAT},
+    yaxis: 'y'
+  };
+  const traceVol = {
+    x: series.x.map(keyToLabel),
+    y: series.vol,
+    mode: 'lines+markers',
+    type: 'scatter',
+    name: 'Volume',
+    line: {color: COLOR_VOL, width: 2},
+    marker: {color: COLOR_VOL},
+    yaxis: 'y2'
+  };
+
+  const layout = {
+    margin:{l:55,r:55,t:10,b:48},
+    xaxis:{tickangle:-45, automargin:true},
+    yaxis:{title:'Faturamento (R$)', automargin:true, rangemode:'tozero', autorange:true},
+    yaxis2:{title:'Volume (pcs)', overlaying:'y', side:'right', rangemode:'tozero', autorange:true},
+    legend:{orientation:'h', y:-0.2, x:0},
+  };
+  Plotly.react(chartEl, [traceFat, traceVol], layout, {responsive:true});
+
+  // Métricas
+  const metrics = computeMetrics(series);
+  renderMetrics(category, metrics);
+
+  // Ajusta altura do card aberto ao conteúdo
+  adjustOpenHeights();
+}
+
+function adjustOpenHeights(){
   document.querySelectorAll(".card-wrap").forEach(w=>{
-    if (w.style.maxHeight && w.style.maxHeight !== "0px"){
+    if (w.style.maxHeight && w.style.maxHeight!=="0px"){
       w.style.maxHeight = w.scrollHeight + "px";
     }
   });
 }
 
-// ====== Orchestration ======
-function applyFiltersAndRender(){
-  const startKey = fromSel.value;
-  const endKey   = toSel.value;
-  if (startKey > endKey){
-    alert("Período inválido: 'De' é maior que 'Até'.");
-    return;
-  }
-  const metric = metricSel.value; // "Valor" | "Quantidade"
-  const metricLabel = metric === "Quantidade" ? "Quantidade (pcs)" : "Valor (R$)";
-
-  const series = aggregateByCategoryMonthly(rawRows, startKey, endKey, metric);
-  drawCharts(series, metricLabel);
+function initLocalControls(category){
+  const safe = category.replace(/\s+/g,'-').toLowerCase();
+  // Preenche selects
+  populateMonthYearSelectors(category);
+  // Botões rápidos
+  const btns = document.querySelectorAll(`#btns-${safe} .btn`);
+  btns.forEach(b=>{
+    b.addEventListener('click', ()=>{
+      btns.forEach(x=>x.classList.remove('primary'));
+      b.classList.add('primary');
+      setQuickRange(category, b.dataset.range);
+      drawCategoryChart(category);
+    });
+  });
+  // Botão aplicar
+  document.getElementById(`apply-${safe}`).addEventListener('click', ()=>{
+    btns.forEach(x=>x.classList.remove('primary'));
+    drawCategoryChart(category);
+  });
+  // Primeiro draw
+  drawCategoryChart(category);
 }
 
+// ========================= BOOTSTRAP =========================
 function init(){
   Papa.parse(CSV_URL, {
-    download: true,
-    header: true,
-    skipEmptyLines: true,
-    complete: (res)=>{
-      const rows = res.data || [];
-      rawRows = normalizeRows(rows);
-      if (!rawRows.length){
-        document.getElementById("cats-container").innerHTML = "<p>CSV sem dados.</p>";
-        return;
+    download:true,
+    header:true,
+    skipEmptyLines:true,
+    transformHeader: h => (h || '').trim(),
+    transform: v => {
+      // normaliza números no ato da leitura
+      if (typeof v === 'string' && /^-?\d[\d.,]*$/.test(v.trim())){
+        const normalized = v.trim().replace(/\./g,'').replace(',','.');
+        const n = Number(normalized);
+        return isFinite(n) ? n : v.trim();
       }
-      monthKeys = computeMonthKeys(rawRows);
-      minKey = monthKeys[0];
-      maxKey = monthKeys[monthKeys.length-1];
-
-      // Build UI
-      populatePeriodSelectors();
-      buildCategoryCards("cats-container", CATEGORIES);
-      // Initial render
-      applyFiltersAndRender();
+      return (typeof v === 'string') ? v.trim() : v;
     },
-    error: (err)=> {
+    complete:(res)=>{
+      const rows = res.data || [];
+      ALL_ROWS = normalizeRows(rows);
+
+      // Monta cards
+      buildCategoryCards("cats-container", CATEGORIES);
+      // Inicializa controles por card
+      CATEGORIES.forEach(cat=> initLocalControls(cat));
+    },
+    error:(err)=>{
       document.getElementById("cats-container").innerHTML = "<p>Erro ao carregar CSV.</p>";
       console.error(err);
     }
   });
 
-  // Events
-  applyBtn.addEventListener("click", applyFiltersAndRender);
-  // live update on metric change
-  metricSel.addEventListener("change", applyFiltersAndRender);
-  // keep charts responsive on resize
-  window.addEventListener("resize", ()=>{
-    // re-fit opened cards to content height
-    document.querySelectorAll(".card-wrap").forEach(w=>{
-      if (w.style.maxHeight && w.style.maxHeight !== "0px"){
-        w.style.maxHeight = w.scrollHeight + "px";
-      }
-    });
-  });
+  // Mantém responsivo e ajusta alturas quando a janela muda
+  window.addEventListener("resize", adjustOpenHeights);
 }
 
-// Start
 init();
 </script>
 </body>
