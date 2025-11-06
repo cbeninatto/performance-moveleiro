@@ -1,4 +1,4 @@
-<!-- test-stacked.html | v1.3 | Participação por Linha - Paleta e Modo -->
+<!-- test-stacked.html | v1.4 | Participação por Linha - Paleta e Modo -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -159,7 +159,11 @@ function drawChart(){
     yaxis:{title:"%",range:[0,100],dtick:20,gridcolor:"#e9ecef"},
     legend:{orientation:"h",y:-0.25},
     margin:{t:30,r:30,b:80,l:60},
-    paper_bgcolor:"#fff",plot_bgcolor:"#fff"
+    paper_bgcolor:"#fff",plot_bgcolor:"#fff",
+    hoverlabel: {
+      bgcolor: "#000",   // dark background
+      font: { color: "#fff", size: 13 } // white text
+    }
   };
   Plotly.newPlot("chart", traces, layout, {responsive:true});
 }
