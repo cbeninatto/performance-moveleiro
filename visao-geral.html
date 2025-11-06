@@ -1,0 +1,166 @@
+<!-- test.html | v1.3 | Strict categorical X (no Date) + Stats Block -->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Teste - Visão Geral (com Indicadores)</title>
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+<style>
+  :root{--bg:#dfe1e1;--card:#fff;--red:#e53935;--blue:#1e88e5}
+  body{margin:0;background:var(--bg);font-family:Inter,system-ui}
+  .wrap{max-width:1000px;margin:40px auto;background:var(--card);padding:20px;border-radius:10px;box-shadow:0 3px 10px rgba(0,0,0,.1)}
+  #chart{width:100%;height:550px}
+  #loading{position:fixed;inset:0;background:rgba(255,255,255,.9);display:flex;align-items:center;justify-content:center;font-weight:600;z-index:10}
+  #loading.hidden{opacity:0;pointer-events:none;transition:opacity .3s}
+  pre{white-space:pre-wrap;background:#fafafa;border:1px solid #eee;padding:8px;border-radius:6px}
+  #stats{margin-top:25px;display:flex;gap:30px;flex-wrap:wrap;font-size:15px;font-weight:500}
+  #stats div{background:#fafafa;border-radius:8px;padding:10px 15px;box-shadow:0 1px 4px rgba(0,0,0,.05)}
+  #stats span{font-weight:700;color:var(--blue)}
+</style>
+</head>
+<body>
+<div id="loading">Carregando dados…</div>
+<div class="wrap">
+  <h2>📊 Visão Geral (Valor e Quantidade)</h2>
+  <div id="chart"></div>
+  <div id="stats"></div>
+  <h3>Debug</h3>
+  <pre id="debug"></pre>
+</div>
+
+<script>
+const PT_ABBR=["JAN","FEV","MAR","ABR","MAI","JUN","JUL","AGO","SET","OUT","NOV","DEZ"];
+
+// --- Normalize CSV rows ---
+function normalizeRows(rows){
+  const out=[];
+  for(const o of rows){
+    const ano = Number(o.Ano);
+    const mes = Number(o.Mes);
+    if(!Number.isFinite(ano) || !Number.isFinite(mes) || mes<1 || mes>12) continue;
+    out.push({
+      Ano:ano,
+      Mes:mes,
+      Valor:Number(o.Valor)||0,
+      Quantidade:Number(o.Quantidade)||0,
+      Key:`${ano}-${String(mes).padStart(2,"0")}` // categorical key
+    });
+  }
+  out.sort((a,b)=> a.Key.localeCompare(b.Key));
+  return out;
+}
+
+// --- Aggregate by month ---
+function aggMonthly(rows){
+  const map = new Map();
+  for(const r of rows){
+    if(!map.has(r.Key)) map.set(r.Key, {Key:r.Key, Valor:0, Quantidade:0, Ano:r.Ano, Mes:r.Mes});
+    const m = map.get(r.Key);
+    m.Valor += r.Valor;
+    m.Quantidade += r.Quantidade;
+  }
+  return [...map.values()].sort((a,b)=> a.Key.localeCompare(b.Key));
+}
+
+// --- Formatters ---
+function fmtBRL(v){ return v.toLocaleString("pt-BR",{style:"currency",currency:"BRL"}); }
+function fmtInt(v){ return Math.round(v).toLocaleString("pt-BR"); }
+
+// --- Stats calculations (as in v5.3.2) ---
+function calcStats(values){
+  if(values.length<2) return {varTotal:0,avgMensal:0,volatilidade:0};
+  const pct=[];
+  for(let i=1;i<values.length;i++){
+    const v0=values[i-1], v1=values[i];
+    if(v0!==0) pct.push((v1/v0-1)*100);
+  }
+  const varTotal=(values.at(-1)/values[0]-1)*100;
+  const avgMensal=pct.reduce((a,b)=>a+b,0)/pct.length;
+  const mean=avgMensal;
+  const volatilidade=Math.sqrt(pct.reduce((a,b)=>a+(b-mean)**2,0)/(pct.length-1));
+  return {varTotal,avgMensal,volatilidade};
+}
+
+// --- Draw chart ---
+function drawTotal(monthly){
+  if(!monthly.length){ document.getElementById('debug').textContent += "\nNenhum dado após normalização."; return; }
+
+  const x=monthly.map(m=>m.Key);
+  const ticktext=monthly.map(m=>PT_ABBR[m.Mes-1]+" "+String(m.Ano).slice(-2));
+
+  const barsValor={
+    x,y:monthly.map(m=>m.Valor),
+    type:'bar',
+    marker:{color:'var(--red)',opacity:0.85},
+    name:'Valor (R$)',
+    hovertemplate:"<b>Valor:</b> %{customdata.v}<extra></extra>",
+    customdata:monthly.map(m=>({v:fmtBRL(m.Valor)}))
+  };
+
+  const lineQtd={
+    x,y:monthly.map(m=>m.Quantidade),
+    mode:'lines+markers',
+    line:{shape:'spline',width:3,color:'var(--blue)',smoothing:0.6},
+    marker:{size:6,line:{width:1,color:'#fff'}},
+    name:'Quantidade (un.)',
+    yaxis:'y2',
+    hovertemplate:"<b>Quantidade:</b> %{customdata.q} un<extra></extra>",
+    customdata:monthly.map(m=>({q:fmtInt(m.Quantidade)}))
+  };
+
+  Plotly.newPlot('chart',[barsValor,lineQtd],{
+    hovermode:'x unified',
+    xaxis:{
+      type:'category',
+      categoryorder:'array',
+      categoryarray:x,
+      tickmode:'array',
+      tickvals:x,
+      ticktext:ticktext,
+      showgrid:false
+    },
+    yaxis:{title:'Valor (R$)',gridcolor:'#e9ecef'},
+    yaxis2:{title:'Quantidade (un.)',overlaying:'y',side:'right'},
+    legend:{orientation:'h',y:-0.25},
+    paper_bgcolor:'#fff',
+    plot_bgcolor:'#fff',
+    margin:{t:30,r:40,b:80,l:60}
+  },{responsive:true});
+
+  // --- Compute and display stats ---
+  const valores=monthly.map(m=>m.Valor);
+  const stats=calcStats(valores);
+  document.getElementById('stats').innerHTML=`
+    <div>📈 <b>Variação Total:</b> <span>${stats.varTotal.toFixed(1)}%</span></div>
+    <div>📊 <b>Média Mensal:</b> <span>${stats.avgMensal.toFixed(2)}%</span></div>
+    <div>⚡ <b>Volatilidade:</b> <span>${stats.volatilidade.toFixed(2)}%</span></div>
+  `;
+}
+
+// --- Main ---
+(async()=>{
+  try{
+    const res=await fetch('data/relatorio_faturamento.csv?cb='+Date.now());
+    const text=await res.text();
+    const delim=text.includes(';')?';':',';
+    document.getElementById('debug').textContent=`Delimiter: "${delim}"`;
+    const parsed=Papa.parse(text,{header:true,skipEmptyLines:true,delimiter:delim});
+
+    const rows=normalizeRows(parsed.data);
+    document.getElementById('debug').textContent+=`\nRows after normalize: ${rows.length}`;
+    const monthly=aggMonthly(rows);
+    document.getElementById('debug').textContent+=`\nMonthly points: ${monthly.length}`;
+
+    drawTotal(monthly);
+  }catch(err){
+    console.error(err);
+    document.getElementById('debug').textContent+=`\nERROR: ${err}`;
+  }finally{
+    document.getElementById('loading').classList.add('hidden');
+  }
+})();
+</script>
+</body>
+</html>
