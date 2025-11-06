@@ -1,4 +1,4 @@
-<!-- test-share.html | v1.0 | Participação por Linha Palette & Mode Test -->
+<!-- test-share.html | v1.1 | Participação por Linha Palette & Mode Test -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -43,39 +43,41 @@
 </div>
 
 <script>
-const PT_ABBR=["JAN","FEV","MAR","ABR","MAI","JUN","JUL","AGO","SET","OUT","NOV","DEZ"];
-const LINES=["Acessórios","Articuladores","Corrediça Oculta","Corrediça Telescópica","Dobradiças","Pulsadores","Rodízio"];
+const PT_ABBR = ["JAN","FEV","MAR","ABR","MAI","JUN","JUL","AGO","SET","OUT","NOV","DEZ"];
+const LINES = ["Acessórios","Articuladores","Corrediça Oculta","Corrediça Telescópica","Dobradiças","Pulsadores","Rodízio"];
 
-const PALETTES={
-  vivid:["#e53935","#fb8c00","#8e24aa","#43a047","#00bfa6","#1e88e5","#bfa76f"],
-  soft:["#c84b31","#d97b2d","#be6bc2","#5cb85c","#3fa7a7","#4878d0","#b5b5b5"],
-  pastel:["#E07A5F","#F2CC8F","#81B29A","#3D405B","#F4F1DE","#9A8C98","#C9ADA7"]
+const PALETTES = {
+  vivid: ["#e53935","#fb8c00","#8e24aa","#43a047","#00bfa6","#1e88e5","#bfa76f"],
+  soft: ["#c84b31","#d97b2d","#be6bc2","#5cb85c","#3fa7a7","#4878d0","#b5b5b5"],
+  pastel: ["#E07A5F","#F2CC8F","#81B29A","#3D405B","#F4F1DE","#9A8C98","#C9ADA7"]
 };
 
-let DATA_RAW=[],MONTHLY_BY_LINE={},MONTH_LABELS=[],CURRENT_MODE="Valor",CURRENT_PALETTE="vivid";
+let DATA_RAW = [], MONTHLY_BY_LINE = {}, MONTH_LABELS = [];
+let CURRENT_MODE = "Valor", CURRENT_PALETTE = "vivid";
 
 function mapCategoria(desc){
-  const d=(desc||"").toUpperCase();
-  if(d.includes("ESCOND")||d.includes("SLIM MV119")) return "Corrediça Oculta";
-  if(d.includes("TRILHO")&&(d.includes("NORMAL")||d.includes("TELE")||d.includes("TEL"))) return "Corrediça Telescópica";
+  const d = (desc || "").toUpperCase();
+  if(d.includes("ESCOND") || d.includes("SLIM MV119")) return "Corrediça Oculta";
+  if(d.includes("TRILHO") && (d.includes("NORMAL") || d.includes("TELE") || d.includes("TEL"))) return "Corrediça Telescópica";
   if(d.includes("DOBRAD")) return "Dobradiças";
-  if(d.includes("PIST")||d.includes("ARTICUL")) return "Articuladores";
+  if(d.includes("PIST") || d.includes("ARTICUL")) return "Articuladores";
   if(d.includes("RODIZ")) return "Rodízio";
-  if(d.includes("PULSADOR")||d.includes("TIP-ON")||d.includes("TIP ON")) return "Pulsadores";
+  if(d.includes("PULSADOR") || d.includes("TIP-ON") || d.includes("TIP ON")) return "Pulsadores";
   return "Acessórios";
 }
 
 function normalizeRows(rows){
-  const out=[];
-  rows.forEach(o=>{
-    const ano=parseInt(o.Ano,10),mes=parseInt(o.Mes,10);
-    if(!ano||!mes||mes<1||mes>12)return;
+  const out = [];
+  rows.forEach(o => {
+    const ano = parseInt(o.Ano, 10), mes = parseInt(o.Mes, 10);
+    if(!ano || !mes || mes < 1 || mes > 12) return;
     out.push({
-      Ano:ano,Mes:mes,
-      Valor:Number(o.Valor)||0,
-      Quantidade:Number(o.Quantidade)||0,
-      Linha:mapCategoria(o.Descricao),
-      Key:${ano}-${String(mes).padStart(2,"0")}
+      Ano: ano,
+      Mes: mes,
+      Valor: Number(o.Valor) || 0,
+      Quantidade: Number(o.Quantidade) || 0,
+      Linha: mapCategoria(o.Descricao),
+      Key: `${ano}-${String(mes).padStart(2,"0")}`
     });
   });
   out.sort((a,b)=>a.Key.localeCompare(b.Key));
@@ -83,69 +85,73 @@ function normalizeRows(rows){
 }
 
 function aggByLinha(rows){
-  const map={};
+  const map = {};
   rows.forEach(r=>{
-    if(!map[r.Linha]) map[r.Linha]={};
-    if(!map[r.Linha][r.Key]) map[r.Linha][r.Key]={Valor:0,Quantidade:0};
-    map[r.Linha][r.Key].Valor+=r.Valor;
-    map[r.Linha][r.Key].Quantidade+=r.Quantidade;
+    if(!map[r.Linha]) map[r.Linha] = {};
+    if(!map[r.Linha][r.Key]) map[r.Linha][r.Key] = {Valor:0,Quantidade:0};
+    map[r.Linha][r.Key].Valor += r.Valor;
+    map[r.Linha][r.Key].Quantidade += r.Quantidade;
   });
   return map;
 }
 
 function buildMonthlyLabels(rows){
-  const keys=[...new Set(rows.map(r=>r.Key))].sort();
+  const keys = [...new Set(rows.map(r=>r.Key))].sort();
   return keys.map(k=>{
-    const [y,m]=k.split("-").map(Number);
+    const [y,m] = k.split("-").map(Number);
     return {Key:k,Label:PT_ABBR[m-1]+" "+String(y).slice(-2)};
   });
 }
 
-function computePercentages(dataMap,mode){
-  const months=[...MONTH_LABELS.map(m=>m.Key)];
-  const totalPerMonth={};
+function computePercentages(dataMap, mode){
+  const months = [...MONTH_LABELS.map(m=>m.Key)];
+  const totalPerMonth = {};
   months.forEach(k=>{
-    totalPerMonth[k]=Object.values(dataMap).reduce((acc,vals)=>
-      acc+(vals[k]?vals[k][mode]:0),0);
+    totalPerMonth[k] = Object.values(dataMap).reduce((acc,vals)=>
+      acc + (vals[k] ? vals[k][mode] : 0), 0);
   });
-  const result={};
+  const result = {};
   for(const line of LINES){
-    const values=dataMap[line]||{};
-    result[line]=months.map(k=>{
-      const val=(values[k]?values[k][mode]:0);
-      const total=totalPerMonth[k]||1;
-      return (val/total)*100;
+    const values = dataMap[line] || {};
+    result[line] = months.map(k=>{
+      const val = (values[k] ? values[k][mode] : 0);
+      const total = totalPerMonth[k] || 1;
+      return (val / total) * 100;
     });
   }
   return result;
 }
 
 function drawChart(){
-  const mode=CURRENT_MODE, pal=PALETTES[CURRENT_PALETTE];
-  const pctData=computePercentages(MONTHLY_BY_LINE,mode);
-  const months=MONTH_LABELS.map(m=>m.Key);
-  const ticktext=MONTH_LABELS.map(m=>m.Label);
-  const traces=[];
+  const mode = CURRENT_MODE, pal = PALETTES[CURRENT_PALETTE];
+  const pctData = computePercentages(MONTHLY_BY_LINE, mode);
+  const months = MONTH_LABELS.map(m=>m.Key);
+  const ticktext = MONTH_LABELS.map(m=>m.Label);
+  const traces = [];
+
   LINES.forEach((line,i)=>{
-    const vals=pctData[line];
+    const vals = pctData[line];
     if(!vals) return;
-    const abs=MONTH_LABELS.map(m=>{
-      const dat=MONTHLY_BY_LINE[line]?.[m.Key];
-      return dat?dat[mode]:0;
+    const abs = MONTH_LABELS.map(m=>{
+      const dat = MONTHLY_BY_LINE[line]?.[m.Key];
+      return dat ? dat[mode] : 0;
     });
     traces.push({
-      x:months,
-      y:vals,
-      type:"bar",
-      name:line,
-      marker:{color:pal[i%pal.length],line:{width:1,color:"#fff"}},
-      hovertemplate:<b>${line}</b><br>${mode==='Valor'?'Valor':'Quantidade'}: %{customdata.v}<br>Participação: %{y:.1f}%<extra></extra>,
-      customdata:abs.map(v=>({v:mode==='Valor'
-        ?v.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})
-        :Math.round(v).toLocaleString("pt-BR")+" un"}))
+      x: months,
+      y: vals,
+      type: "bar",
+      name: line,
+      marker: {color: pal[i % pal.length], line:{width:1,color:"#fff"}},
+      hovertemplate: `<b>${line}</b><br>${mode==='Valor'?'Valor':'Quantidade'}: %{customdata.v}<br>Participação: %{y:.1f}%<extra></extra>`,
+      customdata: abs.map(v=>({
+        v: mode==='Valor'
+          ? v.toLocaleString("pt-BR",{style:"currency",currency:"BRL"})
+          : Math.round(v).toLocaleString("pt-BR")+" un"
+      }))
     });
   });
-  const layout={
+
+  const layout = {
     barmode:"stack",
     xaxis:{type:"category",tickvals:months,ticktext:ticktext,showgrid:false},
     yaxis:{title:"%",range:[0,100],dtick:20,gridcolor:"#e9ecef"},
@@ -153,35 +159,36 @@ function drawChart(){
     margin:{t:30,r:30,b:80,l:60},
     paper_bgcolor:"#fff",plot_bgcolor:"#fff"
   };
-  Plotly.newPlot("chart",traces,layout,{responsive:true});
+  Plotly.newPlot("chart", traces, layout, {responsive:true});
 }
 
+// Load CSV
 (async()=>{
-  const res=await fetch("data/relatorio_faturamento.csv");
-  const text=await res.text();
-  const delim=text.includes(";")?";":",";
-  const parsed=Papa.parse(text,{header:true,skipEmptyLines:true,delimiter:delim});
-  DATA_RAW=normalizeRows(parsed.data);
-  MONTHLY_BY_LINE=aggByLinha(DATA_RAW);
-  MONTH_LABELS=buildMonthlyLabels(DATA_RAW);
+  const res = await fetch("data/relatorio_faturamento.csv");
+  const text = await res.text();
+  const delim = text.includes(";") ? ";" : ",";
+  const parsed = Papa.parse(text,{header:true,skipEmptyLines:true,delimiter:delim});
+  DATA_RAW = normalizeRows(parsed.data);
+  MONTHLY_BY_LINE = aggByLinha(DATA_RAW);
+  MONTH_LABELS = buildMonthlyLabels(DATA_RAW);
   drawChart();
 })();
 
-// Dropdown change
+// Palette change
 document.getElementById("paletteSelect").addEventListener("change",e=>{
-  CURRENT_PALETTE=e.target.value;
+  CURRENT_PALETTE = e.target.value;
   drawChart();
 });
 
-// Toggle buttons
+// Mode toggle
 document.getElementById("btnValor").addEventListener("click",()=>{
-  CURRENT_MODE="Valor";
+  CURRENT_MODE = "Valor";
   document.getElementById("btnValor").classList.add("active");
   document.getElementById("btnQtd").classList.remove("active");
   drawChart();
 });
 document.getElementById("btnQtd").addEventListener("click",()=>{
-  CURRENT_MODE="Quantidade";
+  CURRENT_MODE = "Quantidade";
   document.getElementById("btnQtd").classList.add("active");
   document.getElementById("btnValor").classList.remove("active");
   drawChart();
