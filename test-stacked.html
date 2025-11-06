@@ -1,4 +1,4 @@
-<!-- test-share.html | v1.1 | Participação por Linha Palette & Mode Test -->
+<!-- test-stacked.html | v1.3 | Participação por Linha - Paleta e Modo -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -30,6 +30,7 @@
   <div class="controls">
     <label>Paleta:</label>
     <select id="paletteSelect">
+      <option value="desert">Desert (Default)</option>
       <option value="vivid">Vivid Original</option>
       <option value="soft">Soft Professional</option>
       <option value="pastel">Pastel Industry</option>
@@ -47,13 +48,14 @@ const PT_ABBR = ["JAN","FEV","MAR","ABR","MAI","JUN","JUL","AGO","SET","OUT","NO
 const LINES = ["Acessórios","Articuladores","Corrediça Oculta","Corrediça Telescópica","Dobradiças","Pulsadores","Rodízio"];
 
 const PALETTES = {
+  desert: ["#264653","#287271","#2a9d8f","#e9c46a","#f4a261","#ee8959","#e76f51"],
   vivid: ["#e53935","#fb8c00","#8e24aa","#43a047","#00bfa6","#1e88e5","#bfa76f"],
   soft: ["#c84b31","#d97b2d","#be6bc2","#5cb85c","#3fa7a7","#4878d0","#b5b5b5"],
   pastel: ["#E07A5F","#F2CC8F","#81B29A","#3D405B","#F4F1DE","#9A8C98","#C9ADA7"]
 };
 
 let DATA_RAW = [], MONTHLY_BY_LINE = {}, MONTH_LABELS = [];
-let CURRENT_MODE = "Valor", CURRENT_PALETTE = "vivid";
+let CURRENT_MODE = "Valor", CURRENT_PALETTE = "desert";
 
 function mapCategoria(desc){
   const d = (desc || "").toUpperCase();
@@ -162,9 +164,9 @@ function drawChart(){
   Plotly.newPlot("chart", traces, layout, {responsive:true});
 }
 
-// Load CSV
+// Load CSV (absolute path for GitHub Pages)
 (async()=>{
-  const res = await fetch("data/relatorio_faturamento.csv");
+  const res = await fetch("https://cbeninatto.github.io/performance-moveleiro/data/relatorio_faturamento.csv");
   const text = await res.text();
   const delim = text.includes(";") ? ";" : ",";
   const parsed = Papa.parse(text,{header:true,skipEmptyLines:true,delimiter:delim});
