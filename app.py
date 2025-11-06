@@ -8,7 +8,7 @@ st.set_page_config(page_title="Relatório de Faturamento Extractor", page_icon="
 st.title("📄 Extrator de Relatório de Faturamento")
 
 st.markdown("""
-Envie o PDF do relatório (49 páginas) e o sistema extrairá automaticamente os dados para **CSV** e **XLSX**.
+Envie o PDF do relatório e o sistema extrairá automaticamente os dados para **CSV** e **XLSX**.
 
 Upload your billing report PDF below — it will extract product, month, quantity, and value into a clean CSV/XLSX.
 """)
@@ -31,7 +31,13 @@ mes_line_re = re.compile(
 if uploaded_file:
     records, current_code, current_desc = [], None, None
     with pdfplumber.open(uploaded_file) as pdf:
-        for page in pdf.pages:
+        total_pages = len(pdf.pages)
+        st.info(f"📄 PDF carregado com **{total_pages} páginas**.")
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+
+        for i, page in enumerate(pdf.pages, start=1):
+            status_text.text(f"🔍 Processando página {i}/{total_pages}...")
             for raw in (page.extract_text() or "").splitlines():
                 line = raw.strip()
                 if not line or "Subtotal PRODUTO" in line or "www.kunden.com.br" in line:
@@ -55,6 +61,9 @@ if uploaded_file:
                         })
                     except Exception:
                         pass
+            progress_bar.progress(i / total_pages)
+
+        status_text.text("✅ Processamento concluído.")
 
     if not records:
         st.error("Nenhum dado foi encontrado. Verifique se o PDF tem o formato esperado.")
