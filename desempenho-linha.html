@@ -1,4 +1,4 @@
-<!-- desempenho-linha.html | v3.1 | Desempenho por Linha (CSV + Collapsibles + Filters) -->
+<!-- desempenho-linha.html | v3.2 | pt-BR formatting, custom hovers, no SI prefixes -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -7,36 +7,29 @@
 <title>📈 Desempenho por Linha (CSV)</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<!-- ✅ pt-BR locale for Plotly -->
+<script src="https://cdn.plot.ly/plotly-locale-pt-br-latest.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
 <style>
-  :root{
-    --bg:#dfe1e1; --card:#fff; --accent:#f5b95f;
-    --shadow:0 6px 18px rgba(0,0,0,.10);
-  }
+  :root{ --bg:#dfe1e1; --card:#fff; --accent:#f5b95f; --shadow:0 6px 18px rgba(0,0,0,.10); }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
   .wrap{max-width:1100px;margin:28px auto;padding:0 16px}
   .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:8px 0 18px}
-  .toolbar .cardish{
-    background:var(--card); box-shadow:var(--shadow); border-radius:12px; padding:10px 12px;
-    display:flex; gap:8px; align-items:center
-  }
+  .toolbar .cardish{background:var(--card);box-shadow:var(--shadow);border-radius:12px;padding:10px 12px;display:flex;gap:8px;align-items:center}
   label{font-weight:600}
   select{padding:6px 8px;border:1px solid #ddd;border-radius:8px;background:#fff}
   .section{margin:16px 0}
   .titlebar{
-    background:#000;color:#fff;padding:12px 16px;border-radius:10px 10px 0 0;
-    display:flex;justify-content:space-between;align-items:center;font-weight:700;cursor:pointer;
-    border-left:6px solid var(--accent)
+    background:#000;color:#fff;padding:12px 16px;border-radius:10px 10px 0 0;display:flex;justify-content:space-between;align-items:center;
+    font-weight:700;cursor:pointer;border-left:6px solid var(--accent)
   }
   .caret{font-size:.9rem;opacity:.9}
-  .card-wrap{
-    overflow:hidden;transition:max-height .25s ease-in-out;background:var(--card);
-    border-radius:0 0 10px 10px;box-shadow:var(--shadow);margin-bottom:12px
-  }
+  .card-wrap{overflow:hidden;transition:max-height .25s ease-in-out;background:var(--card);border-radius:0 0 10px 10px;box-shadow:var(--shadow);margin-bottom:12px}
   .card{padding:14px;border-top:1px solid #eee}
   #card-cats{max-height:none!important;overflow:visible!important}
   .muted{opacity:.85;font-weight:600}
+  button#apply{padding:8px 12px;border-radius:10px;border:0;background:#000;color:#fff;font-weight:700}
 </style>
 </head>
 <body>
@@ -46,8 +39,8 @@
     <div class="cardish">
       <label for="metric">Métrica:</label>
       <select id="metric">
-        <option value="Valor" selected>Valor (R$)</option>
-        <option value="Quantidade">Quantidade (pcs)</option>
+        <option value="Faturamento" selected>Faturamento (R$)</option>
+        <option value="Volume">Volume (un)</option>
       </select>
     </div>
     <div class="cardish">
@@ -57,7 +50,7 @@
       <select id="to"></select>
     </div>
     <div class="cardish">
-      <button id="apply" style="padding:8px 12px;border-radius:10px;border:0;background:#000;color:#fff;font-weight:700">Aplicar</button>
+      <button id="apply">Aplicar</button>
     </div>
   </div>
 
@@ -73,16 +66,11 @@
 // ====== CONFIG ======
 const CSV_URL = "data/relatorio_faturamento.csv";
 const CATEGORIES = [
-  "Corrediça Oculta",
-  "Corrediça Telescópica",
-  "Dobradiças",
-  "Articuladores",
-  "Rodízio",
-  "Pulsadores",
-  "Acessórios"
+  "Corrediça Oculta","Corrediça Telescópica","Dobradiças",
+  "Articuladores","Rodízio","Pulsadores","Acessórios"
 ];
 
-// ====== Categoria Mapper ======
+// ====== Categoria Mapper (suas regras) ======
 function mapCategoria(d){
   d=(d||'').toUpperCase();
   if(d.includes('ESCOND')||d.includes('SLIM MV119')||d.includes('DREAM BOX')||d.includes('OPENBOX')||(d.includes('GAVETA')&&(d.includes('BOX')||d.includes('OPENBOX'))))return'Corrediça Oculta';
@@ -107,16 +95,28 @@ let minKey="", maxKey="";
 
 // ====== Utils ======
 const z2 = n=> String(n).padStart(2,"0");
-function keyToLabel(key){ const [y,m] = key.split("-"); return `${m}/${y}`; }
+const PT_BR_MONTHS = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
+function keyToLabelShort(key){ const [yS,mS]=key.split("-"); const y=+yS; const m=+mS; return `${PT_BR_MONTHS[m-1]} ${String(y).slice(-2)}`; }
 function ymToKey(Y,M){ return `${Y}-${z2(M)}`; }
-function parseNumber(x){ if (typeof x==="number") return x; if(!x) return 0; return Number(String(x).replace(/\./g,'').replace(',','.'))||0; }
-function* monthRange(startKey,endKey){ let [ys,ms]=startKey.split("-").map(Number); const [ye,me]=endKey.split("-").map(Number); while(ys<ye||(ys===ye&&ms<=me)){ yield ymToKey(ys,ms); ms++; if(ms===13){ms=1;ys++;} } }
+function parseNumber(x){
+  if (typeof x==="number") return x;
+  if (!x) return 0;
+  // aceita "1.234,56" ou "1234.56"
+  const s = String(x).trim().replace(/\s+/g,'');
+  const norm = s.includes(',') && s.includes('.') ? s.replace(/\./g,'').replace(',','.') :
+               s.includes(',') ? s.replace(',','.') : s;
+  return Number(norm) || 0;
+}
+function* monthRange(startKey,endKey){
+  let [ys,ms]=startKey.split("-").map(Number); const [ye,me]=endKey.split("-").map(Number);
+  while(ys<ye || (ys===ye && ms<=me)){ yield ymToKey(ys,ms); ms++; if(ms===13){ms=1;ys++;} }
+}
 
 // ====== UI Builders ======
 function populatePeriodSelectors(){
   fromSel.innerHTML = ""; toSel.innerHTML = "";
   monthKeys.forEach(k=>{
-    const opt1=document.createElement("option"); opt1.value=k; opt1.textContent=keyToLabel(k);
+    const opt1=document.createElement("option"); opt1.value=k; opt1.textContent=keyToLabelShort(k);
     const opt2=opt1.cloneNode(true);
     fromSel.appendChild(opt1); toSel.appendChild(opt2);
   });
@@ -125,9 +125,12 @@ function populatePeriodSelectors(){
   fromSel.value=defFrom; toSel.value=defTo;
 }
 
+// ====== Data processing ======
 function normalizeRows(csvRows){
   return csvRows.map(r=>{
-    const ano=parseInt(r.Ano,10); const mes=parseInt(r.Mes,10); const key=ymToKey(ano,mes);
+    const ano=parseInt(r.Ano,10);
+    const mes=parseInt(r.Mes,10);
+    const key=ymToKey(ano,mes);
     return {
       codigo:r.Codigo,
       descricao:r.Descricao||"",
@@ -146,14 +149,17 @@ function aggregateByCategoryMonthly(rows,startKey,endKey,metric){
   const keys=Array.from(monthRange(startKey,endKey));
   const result={}; CATEGORIES.forEach(cat=>{result[cat]={x:keys.slice(),y:keys.map(_=>0)};});
   rows.forEach(r=>{
-    if(r.key<startKey||r.key>endKey)return;
+    if(r.key<startKey||r.key>endKey) return;
     const cat=CATEGORIES.includes(r.categoria)?r.categoria:'Acessórios';
     const idx=result[cat].x.indexOf(r.key);
-    if(idx>=0){ result[cat].y[idx]+=(metric==="Quantidade"?r.quantidade:r.valor); }
+    if(idx>=0){
+      result[cat].y[idx]+= (metric==="Volume" ? r.quantidade : r.valor);
+    }
   });
   return result;
 }
 
+// ====== Cards & Charts ======
 function buildCategoryCards(containerId,categories){
   const container=document.getElementById(containerId);
   container.innerHTML=categories.map(cat=>{
@@ -178,90 +184,120 @@ function buildCategoryCards(containerId,categories){
       if(open){ wrap.style.maxHeight=wrap.scrollHeight+"px"; }
       else{ wrap.style.maxHeight="0"; }
       const caret=tb.querySelector(".caret");
-      if(caret)caret.textContent=open?"▼":"▶";
+      if(caret) caret.textContent=open?"▼":"▶";
       if(open){ tb.scrollIntoView({behavior:"smooth",block:"start"}); }
     });
   });
 }
 
-function drawCharts(seriesByCat,metricLabel){
+function drawCharts(seriesByCat,metric){
+  const metricLabel = metric==="Volume" ? "Volume (un)" : "Faturamento (R$)";
+  const yTickFormat = metric==="Volume" ? ",.0f" : ",.2f";
+  const yTickPrefix = metric==="Volume" ? "" : "R$ ";
+
   Object.entries(seriesByCat).forEach(([cat,ser])=>{
     const safe=cat.replace(/\s+/g,'-').toLowerCase();
-    const el=document.getElementById(`chart-${safe}`); if(!el)return;
-    const xLabels=ser.x.map(keyToLabel);
-    const trace={x:xLabels,y:ser.y,mode:'lines+markers',type:'scatter',name:cat};
-    const layout={
-      margin:{l:50,r:20,t:10,b:40},
-      xaxis:{tickangle:-45},
-      yaxis:{title:metricLabel,automargin:true},
+    const el=document.getElementById(`chart-${safe}`); if(!el) return;
+
+    const xLabels = ser.x.map(keyToLabelShort);
+
+    const hoverTemplate = metric==="Volume"
+      ? "<b>%{x}</b><br>Volume: %{y:,.0f} un<extra></extra>"
+      : "<b>%{x}</b><br>Faturamento: R$ %{y:,.2f}<extra></extra>";
+
+    const trace = {
+      x: xLabels,
+      y: ser.y,
+      mode: 'lines+markers',
+      type: 'scatter',
+      name: cat,
+      hovertemplate: hoverTemplate
+    };
+
+    const layout = {
+      margin:{l:60,r:20,t:10,b:40},
+      xaxis:{ tickangle:-45 },
+      yaxis:{
+        title: metricLabel,
+        automargin:true,
+        tickformat: yTickFormat,
+        tickprefix: yTickPrefix
+      },
       showlegend:false
     };
-    Plotly.react(el,[trace],layout,{responsive:true});
+
+    // ✅ locale set to pt-BR (thousands '.' and decimal ',')
+    Plotly.react(el,[trace],layout,{responsive:true, locale:'pt-BR'});
   });
+
+  // Re-fit heights of any open cards
   document.querySelectorAll(".card-wrap").forEach(w=>{
-    if(w.style.maxHeight&&w.style.maxHeight!=="0px"){w.style.maxHeight=w.scrollHeight+"px";}
+    if(w.style.maxHeight && w.style.maxHeight!=="0px"){
+      w.style.maxHeight = w.scrollHeight + "px";
+    }
   });
 }
 
+// ====== Apply & Init ======
 function applyFiltersAndRender(){
   const startKey=fromSel.value; const endKey=toSel.value;
-  if(startKey>endKey){alert("Período inválido: 'De' é maior que 'Até'.");return;}
-  const metric=metricSel.value;
-  const metricLabel=metric==="Quantidade"?"Quantidade (pcs)":"Valor (R$)";
+  if(startKey>endKey){ alert("Período inválido: 'De' é maior que 'Até'."); return; }
+  const metric=metricSel.value; // "Faturamento" | "Volume"
   const series=aggregateByCategoryMonthly(rawRows,startKey,endKey,metric);
-  drawCharts(series,metricLabel);
+  drawCharts(series,metric);
 }
 
-// ====== INIT (Safe Loader) ======
 window.addEventListener("DOMContentLoaded", ()=>{
   try{
-    console.log("🚀 Desempenho Linha init started");
+    console.log("🚀 Desempenho Linha init (pt-BR) started");
     Papa.parse(CSV_URL,{
-      download:true,
-      header:true,
-      skipEmptyLines:true,
+      download:true, header:true, skipEmptyLines:true,
+      // Auto-detect comma vs tab
       beforeFirstChunk:function(chunk){
-        const firstLine=chunk.split(/\r?\n/)[0];
-        if(firstLine.includes("\t"))this.delimiter="\t"; else this.delimiter=",";
-        console.log("Detected delimiter:",JSON.stringify(this.delimiter));
+        const firstLine = chunk.split(/\r?\n/)[0];
+        this.delimiter = firstLine.includes("\t") ? "\t" : ",";
+        console.log("Detected delimiter:", JSON.stringify(this.delimiter));
         return chunk;
       },
       complete:(res)=>{
         try{
           const rows=res.data||[];
-          rawRows=normalizeRows(rows);
-          console.log("✅ CSV parsed rows:",rawRows.length);
+          rawRows = normalizeRows(rows);
+          console.log("✅ CSV parsed rows:", rawRows.length);
           if(!rawRows.length){
             document.getElementById("cats-container").innerHTML="<p>CSV sem dados.</p>";
             return;
           }
-          monthKeys=computeMonthKeys(rawRows);
-          minKey=monthKeys[0]; maxKey=monthKeys[monthKeys.length-1];
+          monthKeys = computeMonthKeys(rawRows);
+          minKey = monthKeys[0]; maxKey = monthKeys[monthKeys.length-1];
           populatePeriodSelectors();
-          buildCategoryCards("cats-container",CATEGORIES);
+          buildCategoryCards("cats-container", CATEGORIES);
           applyFiltersAndRender();
         }catch(e){
-          console.error("Error rendering charts:",e);
+          console.error("Error rendering charts:", e);
           document.getElementById("cats-container").innerHTML="<p>Erro ao processar dados.</p>";
         }
       },
       error:(err)=>{
-        console.error("PapaParse error:",err);
+        console.error("PapaParse error:", err);
         document.getElementById("cats-container").innerHTML="<p>Erro ao carregar CSV.</p>";
       }
     });
 
-    applyBtn.addEventListener("click",applyFiltersAndRender);
-    metricSel.addEventListener("change",applyFiltersAndRender);
+    applyBtn.addEventListener("click", applyFiltersAndRender);
+    metricSel.addEventListener("change", applyFiltersAndRender);
 
-    window.addEventListener("resize",()=>{
+    window.addEventListener("resize", ()=>{
       document.querySelectorAll(".card-wrap").forEach(w=>{
-        if(w.style.maxHeight&&w.style.maxHeight!=="0px"){w.style.maxHeight=w.scrollHeight+"px";}
+        if(w.style.maxHeight && w.style.maxHeight!=="0px"){
+          w.style.maxHeight = w.scrollHeight + "px";
+        }
       });
     });
+
   }catch(globalErr){
-    console.error("💥 Fatal init error:",globalErr);
-    document.body.innerHTML+="<p style='padding:16px;color:red'>Erro de inicialização: veja o console.</p>";
+    console.error("💥 Fatal init error:", globalErr);
+    document.body.innerHTML += "<p style='padding:16px;color:red'>Erro de inicialização: veja o console.</p>";
   }
 });
 </script>
