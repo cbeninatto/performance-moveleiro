@@ -1,4 +1,4 @@
-<!-- desempenho-linha.html | v3.2 | pt-BR formatting, custom hovers, no SI prefixes -->
+<!-- desempenho-linha.html | v4.0 | Per-chart toolbar + product filter (with MM combine) -->
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -7,52 +7,51 @@
 <title>📈 Desempenho por Linha (CSV)</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
-<!-- ✅ pt-BR locale for Plotly -->
 <script src="https://cdn.plot.ly/plotly-locale-pt-br-latest.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
 <style>
   :root{ --bg:#dfe1e1; --card:#fff; --accent:#f5b95f; --shadow:0 6px 18px rgba(0,0,0,.10); }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
-  .wrap{max-width:1100px;margin:28px auto;padding:0 16px}
-  .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:8px 0 18px}
-  .toolbar .cardish{background:var(--card);box-shadow:var(--shadow);border-radius:12px;padding:10px 12px;display:flex;gap:8px;align-items:center}
-  label{font-weight:600}
-  select{padding:6px 8px;border:1px solid #ddd;border-radius:8px;background:#fff}
+  .wrap{max-width:1150px;margin:28px auto;padding:0 16px}
+  h2{margin:0 0 8px}
   .section{margin:16px 0}
   .titlebar{
-    background:#000;color:#fff;padding:12px 16px;border-radius:10px 10px 0 0;display:flex;justify-content:space-between;align-items:center;
-    font-weight:700;cursor:pointer;border-left:6px solid var(--accent)
+    background:#000;color:#fff;padding:12px 16px;border-radius:10px 10px 0 0;
+    display:flex;justify-content:space-between;align-items:center;font-weight:700;cursor:pointer;
+    border-left:6px solid var(--accent)
   }
   .caret{font-size:.9rem;opacity:.9}
-  .card-wrap{overflow:hidden;transition:max-height .25s ease-in-out;background:var(--card);border-radius:0 0 10px 10px;box-shadow:var(--shadow);margin-bottom:12px}
+  .card-wrap{
+    overflow:hidden;transition:max-height .25s ease-in-out;background:var(--card);
+    border-radius:0 0 10px 10px;box-shadow:var(--shadow);margin-bottom:12px
+  }
   .card{padding:14px;border-top:1px solid #eee}
   #card-cats{max-height:none!important;overflow:visible!important}
+  .toolbar{
+    display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin:0 0 12px;
+    background:#fff;border:1px solid #ececec;border-radius:10px;padding:8px 10px
+  }
+  .toolbar .group{display:flex;gap:6px;align-items:center;flex-wrap:wrap}
+  .toolbar label{font-weight:600}
+  .btn, .btn-outline{
+    padding:7px 10px;border-radius:10px;font-weight:700;cursor:pointer;user-select:none;
+  }
+  .btn{background:#000;color:#fff;border:0}
+  .btn-outline{background:#fff;color:#000;border:1px solid #ddd}
+  .btn-outline.active{background:#000;color:#fff;border-color:#000}
+  select, input[type="text"]{
+    padding:6px 8px;border:1px solid #ddd;border-radius:8px;background:#fff
+  }
   .muted{opacity:.85;font-weight:600}
-  button#apply{padding:8px 12px;border-radius:10px;border:0;background:#000;color:#fff;font-weight:700}
+  .sp{width:8px}
+  .gsep{width:1px;height:24px;background:#eee;margin:0 4px}
+  .note{font-size:.85rem;color:#666}
 </style>
 </head>
 <body>
 <div class="wrap">
-  <h2 style="margin:0 0 8px">📈 Desempenho por Linha — Teste (CSV)</h2>
-  <div class="toolbar">
-    <div class="cardish">
-      <label for="metric">Métrica:</label>
-      <select id="metric">
-        <option value="Faturamento" selected>Faturamento (R$)</option>
-        <option value="Volume">Volume (un)</option>
-      </select>
-    </div>
-    <div class="cardish">
-      <label for="from">Período:</label>
-      <select id="from"></select>
-      <span class="muted">até</span>
-      <select id="to"></select>
-    </div>
-    <div class="cardish">
-      <button id="apply">Aplicar</button>
-    </div>
-  </div>
+  <h2>📈 Desempenho por Linha — Teste (CSV)</h2>
 
   <div class="section">
     <div class="titlebar" style="cursor:default;">Desempenho por Linha (colapsável)</div>
@@ -82,88 +81,124 @@ function mapCategoria(d){
   return'Acessórios';
 }
 
-// ====== DOM refs ======
-const metricSel = document.getElementById("metric");
-const fromSel   = document.getElementById("from");
-const toSel     = document.getElementById("to");
-const applyBtn  = document.getElementById("apply");
+// ====== DOM root ======
+const containerRoot = document.getElementById("cats-container");
 
-// ====== State ======
+// ====== State & Utils ======
 let rawRows = [];
-let monthKeys = [];
-let minKey="", maxKey="";
+let globalMonthKeys = [];
+let globalMinKey = "", globalMaxKey = "";
 
-// ====== Utils ======
 const z2 = n=> String(n).padStart(2,"0");
 const PT_BR_MONTHS = ['JAN','FEV','MAR','ABR','MAI','JUN','JUL','AGO','SET','OUT','NOV','DEZ'];
-function keyToLabelShort(key){ const [yS,mS]=key.split("-"); const y=+yS; const m=+mS; return `${PT_BR_MONTHS[m-1]} ${String(y).slice(-2)}`; }
+function keyToLabelShort(key){ const [yS,mS]=key.split("-"); return `${PT_BR_MONTHS[+mS-1]} ${String(+yS).slice(-2)}`; }
 function ymToKey(Y,M){ return `${Y}-${z2(M)}`; }
+function* monthRange(startKey,endKey){ let [ys,ms]=startKey.split("-").map(Number); const [ye,me]=endKey.split("-").map(Number); while(ys<ye||(ys===ye&&ms<=me)){ yield ymToKey(ys,ms); ms++; if(ms===13){ms=1;ys++;} } }
 function parseNumber(x){
   if (typeof x==="number") return x;
   if (!x) return 0;
-  // aceita "1.234,56" ou "1234.56"
   const s = String(x).trim().replace(/\s+/g,'');
-  const norm = s.includes(',') && s.includes('.') ? s.replace(/\./g,'').replace(',','.') :
-               s.includes(',') ? s.replace(',','.') : s;
+  const norm = s.includes(',') && s.includes('.') ? s.replace(/\./g,'').replace(',','.')
+             : s.includes(',') ? s.replace(',','.')
+             : s;
   return Number(norm) || 0;
 }
-function* monthRange(startKey,endKey){
-  let [ys,ms]=startKey.split("-").map(Number); const [ye,me]=endKey.split("-").map(Number);
-  while(ys<ye || (ys===ye && ms<=me)){ yield ymToKey(ys,ms); ms++; if(ms===13){ms=1;ys++;} }
+
+// Remove size tokens like "350MM", "400 MM", "500MM", etc., and also remove extra spaces/dashes
+function normalizeBase(desc){
+  if(!desc) return "";
+  let s = desc.toUpperCase();
+  s = s.replace(/\b(\d{2,4})\s*MM\b/g, ''); // drop sizes
+  s = s.replace(/\s{2,}/g,' ').trim();
+  return s;
 }
 
-// ====== UI Builders ======
-function populatePeriodSelectors(){
-  fromSel.innerHTML = ""; toSel.innerHTML = "";
-  monthKeys.forEach(k=>{
-    const opt1=document.createElement("option"); opt1.value=k; opt1.textContent=keyToLabelShort(k);
-    const opt2=opt1.cloneNode(true);
-    fromSel.appendChild(opt1); toSel.appendChild(opt2);
-  });
-  const all=[...monthKeys]; let defFrom=minKey, defTo=maxKey;
-  if(all.length>12){ defFrom=all[all.length-12]; }
-  fromSel.value=defFrom; toSel.value=defTo;
-}
-
-// ====== Data processing ======
+// ====== Normalization & Indexes ======
 function normalizeRows(csvRows){
   return csvRows.map(r=>{
     const ano=parseInt(r.Ano,10);
     const mes=parseInt(r.Mes,10);
     const key=ymToKey(ano,mes);
+    const descricao = r.Descricao || "";
+    const categoria = mapCategoria(descricao);
+    const base = normalizeBase(descricao);
     return {
       codigo:r.Codigo,
-      descricao:r.Descricao||"",
+      descricao,
+      base,
       quantidade:parseNumber(r.Quantidade),
       valor:parseNumber(r.Valor),
-      mes,ano,key,
-      categoria:mapCategoria(r.Descricao||"")
+      mes,ano,key,categoria
     };
   }).filter(r=>r.ano>0&&r.mes>0&&r.mes<=12);
 }
-function computeMonthKeys(rows){
-  const set=new Set(rows.map(r=>r.key));
-  return Array.from(set).sort();
-}
-function aggregateByCategoryMonthly(rows,startKey,endKey,metric){
-  const keys=Array.from(monthRange(startKey,endKey));
-  const result={}; CATEGORIES.forEach(cat=>{result[cat]={x:keys.slice(),y:keys.map(_=>0)};});
-  rows.forEach(r=>{
-    if(r.key<startKey||r.key>endKey) return;
-    const cat=CATEGORIES.includes(r.categoria)?r.categoria:'Acessórios';
-    const idx=result[cat].x.indexOf(r.key);
-    if(idx>=0){
-      result[cat].y[idx]+= (metric==="Volume" ? r.quantidade : r.valor);
-    }
-  });
-  return result;
+
+function computeGlobalMonthKeys(rows){
+  const set = new Set(rows.map(r=>r.key));
+  const arr = Array.from(set).sort();
+  return arr;
 }
 
-// ====== Cards & Charts ======
-function buildCategoryCards(containerId,categories){
-  const container=document.getElementById(containerId);
-  container.innerHTML=categories.map(cat=>{
+function monthKeysForCategory(rows, category){
+  const set = new Set(rows.filter(r=>r.categoria===category).map(r=>r.key));
+  return Array.from(set).sort();
+}
+
+function aggregateCategory(rows, category, startKey, endKey, metric){
+  const keys=Array.from(monthRange(startKey,endKey));
+  const y = keys.map(_=>0);
+  rows.forEach(r=>{
+    if(r.categoria!==category) return;
+    if(r.key<startKey||r.key>endKey) return;
+    const idx = keys.indexOf(r.key);
+    if(idx>=0) y[idx] += (metric==="Volume" ? r.quantidade : r.valor);
+  });
+  return {x:keys,y};
+}
+
+function aggregateProduct(rows, category, productQuery, combineMM, startKey, endKey, metric){
+  if(!productQuery) return null;
+  const keys=Array.from(monthRange(startKey,endKey));
+  const y = keys.map(_=>0);
+
+  // Build predicate
+  const q = productQuery.toUpperCase().trim();
+  const pred = (rec)=>{
+    if(rec.categoria!==category) return false;
+    if(combineMM){
+      // compare against base (MM removed)
+      return rec.base.includes(normalizeBase(q));
+    }else{
+      return rec.descricao.toUpperCase().includes(q);
+    }
+  };
+
+  rows.forEach(r=>{
+    if(!pred(r)) return;
+    if(r.key<startKey||r.key>endKey) return;
+    const idx = keys.indexOf(r.key);
+    if(idx>=0) y[idx] += (metric==="Volume" ? r.quantidade : r.valor);
+  });
+
+  // If entirely zero, still return (so user sees the line/legend), but we can detect emptiness if needed
+  return {x:keys,y};
+}
+
+function distinctProductsForCategory(rows, category){
+  const set = new Set(rows.filter(r=>r.categoria===category).map(r=>r.descricao));
+  return Array.from(set).sort();
+}
+function distinctBasesForCategory(rows, category){
+  const set = new Set(rows.filter(r=>r.categoria===category).map(r=>r.base));
+  // remove empties and strings too short
+  return Array.from(set).filter(s=>s && s.length>4).sort();
+}
+
+// ====== Card UI Builder ======
+function buildCategoryCards(categories){
+  containerRoot.innerHTML = categories.map(cat=>{
     const safe=cat.replace(/\s+/g,'-').toLowerCase();
+    // Each card gets its own toolbar and chart container
     return `
       <div class="section">
         <div class="titlebar collapsible" data-target="card-${safe}">
@@ -171,18 +206,62 @@ function buildCategoryCards(containerId,categories){
         </div>
         <div id="card-${safe}" class="card-wrap" style="max-height:0">
           <div class="card">
-            <div id="chart-${safe}" style="width:100%;height:360px"></div>
+            <div class="toolbar" id="tb-${safe}">
+              <div class="group" data-role="metric">
+                <span class="note">Métrica:</span>
+                <button class="btn-outline active" data-metric="Faturamento">Faturamento</button>
+                <button class="btn-outline" data-metric="Volume">Volume</button>
+              </div>
+              <div class="gsep"></div>
+              <div class="group" data-role="quick">
+                <button class="btn-outline" data-range="3M">3M</button>
+                <button class="btn-outline" data-range="6M">6M</button>
+                <button class="btn-outline" data-range="1A">1A</button>
+                <button class="btn-outline" data-range="5A">5A</button>
+                <button class="btn-outline active" data-range="Tudo">Tudo</button>
+              </div>
+              <div class="gsep"></div>
+              <div class="group" data-role="dates">
+                <span class="note">De</span>
+                <select class="sel-from"></select>
+                <span class="note">até</span>
+                <select class="sel-to"></select>
+                <button class="btn-outline btn-apply">Aplicar</button>
+              </div>
+              <div class="gsep"></div>
+              <div class="group" data-role="product" style="flex:1 1 320px;min-width:260px">
+                <span class="note">Produto</span>
+                <input class="prod-input" list="dl-${safe}" type="text" placeholder="Digite para buscar…"/>
+                <label class="note" style="display:flex;gap:6px;align-items:center">
+                  <input type="checkbox" class="prod-combine" />
+                  Combinar variações (MM)
+                </label>
+                <button class="btn-outline btn-reset">Reset</button>
+                <datalist id="dl-${safe}"></datalist>
+              </div>
+            </div>
+            <div id="chart-${safe}" style="width:100%;height:380px"></div>
           </div>
         </div>
       </div>`;
   }).join("");
-  container.querySelectorAll(".titlebar.collapsible").forEach(tb=>{
+
+  // wire collapsibles
+  containerRoot.querySelectorAll(".titlebar.collapsible").forEach(tb=>{
     tb.addEventListener("click",()=>{
       const id=tb.getAttribute("data-target");
       const wrap=document.getElementById(id);
       const open=(!wrap.style.maxHeight||wrap.style.maxHeight==="0px");
-      if(open){ wrap.style.maxHeight=wrap.scrollHeight+"px"; }
-      else{ wrap.style.maxHeight="0"; }
+      if(open){
+        // lazy init if first open
+        if(!wrap.dataset.inited){
+          initCard(wrap.id);
+          wrap.dataset.inited = "1";
+        }
+        wrap.style.maxHeight=wrap.scrollHeight+"px";
+      } else {
+        wrap.style.maxHeight="0";
+      }
       const caret=tb.querySelector(".caret");
       if(caret) caret.textContent=open?"▼":"▶";
       if(open){ tb.scrollIntoView({behavior:"smooth",block:"start"}); }
@@ -190,103 +269,249 @@ function buildCategoryCards(containerId,categories){
   });
 }
 
-function drawCharts(seriesByCat,metric){
+// ====== Per-card controller ======
+const cardsState = {}; // id -> state
+
+function initCard(cardId){
+  // cardId like "card-corrediça-oculta"
+  const safe = cardId.replace(/^card-/,'');
+  const category = CATEGORIES.find(c=> c.replace(/\s+/g,'-').toLowerCase()===safe);
+  if(!category) return;
+
+  const wrap = document.getElementById(cardId);
+  const tb   = document.getElementById("tb-"+safe);
+  const chartEl = document.getElementById("chart-"+safe);
+
+  // Build datalist options
+  const dl = document.getElementById("dl-"+safe);
+  const products = distinctProductsForCategory(rawRows, category);
+  const bases    = distinctBasesForCategory(rawRows, category);
+  // Prefer listing bases to encourage grouped selection; also include full products after a divider
+  dl.innerHTML =
+    bases.slice(0,400).map(p=>`<option value="${p}"></option>`).join("") +
+    (bases.length? "" : "") +
+    products.slice(0,400).map(p=>`<option value="${p}"></option>`).join("");
+
+  // Category-specific month keys
+  const catMonths = monthKeysForCategory(rawRows, category);
+  const catMin = catMonths[0] || globalMinKey;
+  const catMax = catMonths[catMonths.length-1] || globalMaxKey;
+
+  // Populate date selectors
+  const selFrom = tb.querySelector(".sel-from");
+  const selTo   = tb.querySelector(".sel-to");
+  selFrom.innerHTML = ""; selTo.innerHTML = "";
+  catMonths.forEach(k=>{
+    const opt1=document.createElement("option"); opt1.value=k; opt1.textContent=keyToLabelShort(k);
+    const opt2=opt1.cloneNode(true);
+    selFrom.appendChild(opt1); selTo.appendChild(opt2);
+  });
+  selFrom.value = catMin;
+  selTo.value   = catMax;
+
+  // Initial state
+  cardsState[cardId] = {
+    category,
+    metric: "Faturamento",
+    startKey: catMin,
+    endKey: catMax,
+    productQuery: "",
+    combineMM: false
+  };
+
+  // Event wiring
+  // Metric toggle (instant)
+  tb.querySelectorAll('[data-role="metric"] .btn-outline').forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      tb.querySelectorAll('[data-role="metric"] .btn-outline').forEach(b=>b.classList.remove("active"));
+      btn.classList.add("active");
+      cardsState[cardId].metric = btn.dataset.metric;
+      renderCard(cardId, chartEl);
+    });
+  });
+
+  // Quick ranges (instant)
+  tb.querySelectorAll('[data-role="quick"] .btn-outline').forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      tb.querySelectorAll('[data-role="quick"] .btn-outline').forEach(b=>b.classList.remove("active"));
+      btn.classList.add("active");
+      const range = btn.dataset.range;
+      const [s,e] = computeQuickRange(range, catMonths);
+      cardsState[cardId].startKey = s;
+      cardsState[cardId].endKey   = e;
+      selFrom.value = s; selTo.value = e;
+      renderCard(cardId, chartEl);
+    });
+  });
+
+  // Date changes (instant on change)
+  selFrom.addEventListener("change", ()=>{
+    cardsState[cardId].startKey = selFrom.value;
+    // clear quick selection
+    tb.querySelectorAll('[data-role="quick"] .btn-outline').forEach(b=>b.classList.remove("active"));
+    renderCard(cardId, chartEl);
+  });
+  selTo.addEventListener("change", ()=>{
+    cardsState[cardId].endKey = selTo.value;
+    tb.querySelectorAll('[data-role="quick"] .btn-outline').forEach(b=>b.classList.remove("active"));
+    renderCard(cardId, chartEl);
+  });
+
+  // Aplicar (idempotent)
+  tb.querySelector(".btn-apply").addEventListener("click", ()=> renderCard(cardId, chartEl));
+
+  // Product filters
+  const prodInput = tb.querySelector(".prod-input");
+  const prodCombine = tb.querySelector(".prod-combine");
+
+  prodInput.addEventListener("change", ()=>{
+    cardsState[cardId].productQuery = prodInput.value || "";
+    renderCard(cardId, chartEl);
+  });
+  prodCombine.addEventListener("change", ()=>{
+    cardsState[cardId].combineMM = !!prodCombine.checked;
+    renderCard(cardId, chartEl);
+  });
+
+  // Reset
+  tb.querySelector(".btn-reset").addEventListener("click", ()=>{
+    // reset toggles
+    tb.querySelectorAll('[data-role="metric"] .btn-outline').forEach(b=>b.classList.remove("active"));
+    tb.querySelector('[data-metric="Faturamento"]').classList.add("active");
+    tb.querySelectorAll('[data-role="quick"] .btn-outline').forEach(b=>b.classList.remove("active"));
+    tb.querySelector('[data-range="Tudo"]').classList.add("active");
+
+    cardsState[cardId] = {
+      category,
+      metric: "Faturamento",
+      startKey: catMin,
+      endKey: catMax,
+      productQuery: "",
+      combineMM: false
+    };
+    selFrom.value = catMin; selTo.value = catMax;
+    prodInput.value = ""; prodCombine.checked = false;
+    renderCard(cardId, chartEl);
+  });
+
+  // First render
+  renderCard(cardId, chartEl);
+}
+
+function computeQuickRange(tag, keys){
+  if(!keys.length) return [globalMinKey, globalMaxKey];
+  const end = keys[keys.length-1];
+  const [ye, me] = end.split("-").map(Number);
+  let count = 0;
+  if(tag==="3M") count = 3;
+  else if(tag==="6M") count = 6;
+  else if(tag==="1A") count = 12;
+  else if(tag==="5A") count = 60;
+  if(tag==="Tudo" || count===0) return [keys[0], end];
+
+  // walk keys backwards
+  const startIdx = Math.max(0, keys.length - count);
+  return [keys[startIdx], end];
+}
+
+function drawSeries(el, catSeries, prodSeries, metric){
   const metricLabel = metric==="Volume" ? "Volume (un)" : "Faturamento (R$)";
   const yTickFormat = metric==="Volume" ? ",.0f" : ",.2f";
   const yTickPrefix = metric==="Volume" ? "" : "R$ ";
 
-  Object.entries(seriesByCat).forEach(([cat,ser])=>{
-    const safe=cat.replace(/\s+/g,'-').toLowerCase();
-    const el=document.getElementById(`chart-${safe}`); if(!el) return;
+  const traces = [];
 
-    const xLabels = ser.x.map(keyToLabelShort);
+  // Category (thin gray)
+  traces.push({
+    x: catSeries.x.map(keyToLabelShort),
+    y: catSeries.y,
+    mode: 'lines+markers',
+    type: 'scatter',
+    name: 'Categoria',
+    line: {width: 2, color: 'rgba(0,0,0,0.35)'},
+    marker: {size: 6, color: 'rgba(0,0,0,0.5)'},
+    hovertemplate: metric==="Volume"
+      ? "<b>%{x}</b><br>Volume: %{y:,.0f} un<extra>Categoria</extra>"
+      : "<b>%{x}</b><br>Faturamento: R$ %{y:,.2f}<extra>Categoria</extra>"
+  });
 
-    const hoverTemplate = metric==="Volume"
-      ? "<b>%{x}</b><br>Volume: %{y:,.0f} un<extra></extra>"
-      : "<b>%{x}</b><br>Faturamento: R$ %{y:,.2f}<extra></extra>";
-
-    const trace = {
-      x: xLabels,
-      y: ser.y,
+  // Product (if present)
+  if(prodSeries){
+    traces.push({
+      x: prodSeries.x.map(keyToLabelShort),
+      y: prodSeries.y,
       mode: 'lines+markers',
       type: 'scatter',
-      name: cat,
-      hovertemplate: hoverTemplate
-    };
+      name: 'Produto',
+      line: {width: 4},
+      marker: {size: 7},
+      hovertemplate: metric==="Volume"
+        ? "<b>%{x}</b><br>Volume: %{y:,.0f} un<extra>Produto</extra>"
+        : "<b>%{x}</b><br>Faturamento: R$ %{y:,.2f}<extra>Produto</extra>"
+    });
+  }
 
-    const layout = {
-      margin:{l:60,r:20,t:10,b:40},
-      xaxis:{ tickangle:-45 },
-      yaxis:{
-        title: metricLabel,
-        automargin:true,
-        tickformat: yTickFormat,
-        tickprefix: yTickPrefix
-      },
-      showlegend:false
-    };
+  const layout = {
+    margin:{l:60,r:20,t:10,b:40},
+    xaxis:{tickangle:-45},
+    yaxis:{title:metricLabel,automargin:true,tickformat:yTickFormat,tickprefix:yTickPrefix},
+    showlegend: true,
+    legend: {orientation: 'h', x:0, y:1.1}
+  };
 
-    // ✅ locale set to pt-BR (thousands '.' and decimal ',')
-    Plotly.react(el,[trace],layout,{responsive:true, locale:'pt-BR'});
-  });
-
-  // Re-fit heights of any open cards
-  document.querySelectorAll(".card-wrap").forEach(w=>{
-    if(w.style.maxHeight && w.style.maxHeight!=="0px"){
-      w.style.maxHeight = w.scrollHeight + "px";
-    }
-  });
+  Plotly.react(el, traces, layout, {responsive:true, locale:'pt-BR'});
 }
 
-// ====== Apply & Init ======
-function applyFiltersAndRender(){
-  const startKey=fromSel.value; const endKey=toSel.value;
-  if(startKey>endKey){ alert("Período inválido: 'De' é maior que 'Até'."); return; }
-  const metric=metricSel.value; // "Faturamento" | "Volume"
-  const series=aggregateByCategoryMonthly(rawRows,startKey,endKey,metric);
-  drawCharts(series,metric);
+function renderCard(cardId, el){
+  const st = cardsState[cardId];
+  // Safety checks
+  if(!st) return;
+
+  const catSeries = aggregateCategory(rawRows, st.category, st.startKey, st.endKey, st.metric);
+  const prodSeries = st.productQuery
+    ? aggregateProduct(rawRows, st.category, st.productQuery, st.combineMM, st.startKey, st.endKey, st.metric)
+    : null;
+
+  drawSeries(el, catSeries, prodSeries, st.metric);
+
+  // maintain expanded height
+  const wrap = document.getElementById(cardId);
+  if(wrap && wrap.style.maxHeight && wrap.style.maxHeight!=="0px"){
+    // small timeout allows Plotly to finish layout before measuring
+    setTimeout(()=>{ wrap.style.maxHeight = wrap.scrollHeight + "px"; }, 50);
+  }
 }
 
+// ====== App bootstrap ======
 window.addEventListener("DOMContentLoaded", ()=>{
   try{
-    console.log("🚀 Desempenho Linha init (pt-BR) started");
     Papa.parse(CSV_URL,{
       download:true, header:true, skipEmptyLines:true,
-      // Auto-detect comma vs tab
       beforeFirstChunk:function(chunk){
         const firstLine = chunk.split(/\r?\n/)[0];
         this.delimiter = firstLine.includes("\t") ? "\t" : ",";
-        console.log("Detected delimiter:", JSON.stringify(this.delimiter));
         return chunk;
       },
       complete:(res)=>{
-        try{
-          const rows=res.data||[];
-          rawRows = normalizeRows(rows);
-          console.log("✅ CSV parsed rows:", rawRows.length);
-          if(!rawRows.length){
-            document.getElementById("cats-container").innerHTML="<p>CSV sem dados.</p>";
-            return;
-          }
-          monthKeys = computeMonthKeys(rawRows);
-          minKey = monthKeys[0]; maxKey = monthKeys[monthKeys.length-1];
-          populatePeriodSelectors();
-          buildCategoryCards("cats-container", CATEGORIES);
-          applyFiltersAndRender();
-        }catch(e){
-          console.error("Error rendering charts:", e);
-          document.getElementById("cats-container").innerHTML="<p>Erro ao processar dados.</p>";
+        const rows = res.data || [];
+        rawRows = normalizeRows(rows);
+        if(!rawRows.length){
+          containerRoot.innerHTML = "<p>CSV sem dados.</p>";
+          return;
         }
+        globalMonthKeys = computeGlobalMonthKeys(rawRows);
+        globalMinKey = globalMonthKeys[0];
+        globalMaxKey = globalMonthKeys[globalMonthKeys.length-1];
+
+        buildCategoryCards(CATEGORIES);
       },
       error:(err)=>{
-        console.error("PapaParse error:", err);
-        document.getElementById("cats-container").innerHTML="<p>Erro ao carregar CSV.</p>";
+        containerRoot.innerHTML = "<p>Erro ao carregar CSV.</p>";
+        console.error(err);
       }
     });
 
-    applyBtn.addEventListener("click", applyFiltersAndRender);
-    metricSel.addEventListener("change", applyFiltersAndRender);
-
+    // keep charts responsive on resize and keep card height synced
     window.addEventListener("resize", ()=>{
       document.querySelectorAll(".card-wrap").forEach(w=>{
         if(w.style.maxHeight && w.style.maxHeight!=="0px"){
@@ -295,8 +520,8 @@ window.addEventListener("DOMContentLoaded", ()=>{
       });
     });
 
-  }catch(globalErr){
-    console.error("💥 Fatal init error:", globalErr);
+  }catch(e){
+    console.error("Fatal init error:", e);
     document.body.innerHTML += "<p style='padding:16px;color:red'>Erro de inicialização: veja o console.</p>";
   }
 });
