@@ -1,49 +1,269 @@
+<!-- desempenho-linha.html | v3.1 | Desempenho por Linha (CSV + Collapsibles + Filters) -->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>📈 Desempenho por Linha (CSV)</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/papaparse@5.3.2/papaparse.min.js"></script>
+<style>
+  :root{
+    --bg:#dfe1e1; --card:#fff; --accent:#f5b95f;
+    --shadow:0 6px 18px rgba(0,0,0,.10);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  .wrap{max-width:1100px;margin:28px auto;padding:0 16px}
+  .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin:8px 0 18px}
+  .toolbar .cardish{
+    background:var(--card); box-shadow:var(--shadow); border-radius:12px; padding:10px 12px;
+    display:flex; gap:8px; align-items:center
+  }
+  label{font-weight:600}
+  select{padding:6px 8px;border:1px solid #ddd;border-radius:8px;background:#fff}
+  .section{margin:16px 0}
+  .titlebar{
+    background:#000;color:#fff;padding:12px 16px;border-radius:10px 10px 0 0;
+    display:flex;justify-content:space-between;align-items:center;font-weight:700;cursor:pointer;
+    border-left:6px solid var(--accent)
+  }
+  .caret{font-size:.9rem;opacity:.9}
+  .card-wrap{
+    overflow:hidden;transition:max-height .25s ease-in-out;background:var(--card);
+    border-radius:0 0 10px 10px;box-shadow:var(--shadow);margin-bottom:12px
+  }
+  .card{padding:14px;border-top:1px solid #eee}
+  #card-cats{max-height:none!important;overflow:visible!important}
+  .muted{opacity:.85;font-weight:600}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h2 style="margin:0 0 8px">📈 Desempenho por Linha — Teste (CSV)</h2>
+  <div class="toolbar">
+    <div class="cardish">
+      <label for="metric">Métrica:</label>
+      <select id="metric">
+        <option value="Valor" selected>Valor (R$)</option>
+        <option value="Quantidade">Quantidade (pcs)</option>
+      </select>
+    </div>
+    <div class="cardish">
+      <label for="from">Período:</label>
+      <select id="from"></select>
+      <span class="muted">até</span>
+      <select id="to"></select>
+    </div>
+    <div class="cardish">
+      <button id="apply" style="padding:8px 12px;border-radius:10px;border:0;background:#000;color:#fff;font-weight:700">Aplicar</button>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="titlebar" style="cursor:default;">Desempenho por Linha (colapsável)</div>
+    <div id="card-cats" class="card-wrap">
+      <div class="card" id="cats-container"><!-- dynamic cards here --></div>
+    </div>
+  </div>
+</div>
+
 <script>
-function init(){
-  Papa.parse(CSV_URL, {
-    download: true,
-    header: true,
-    skipEmptyLines: true,
-    // ✅ Auto-detect tab or comma separator
-    beforeFirstChunk: function(chunk){
-      const firstLine = chunk.split(/\r?\n/)[0];
-      if (firstLine.includes("\t")) this.delimiter = "\t";
-      else this.delimiter = ",";
-      return chunk;
-    },
-    complete: (res)=>{
-      const rows = res.data || [];
-      rawRows = normalizeRows(rows);
-      if (!rawRows.length){
-        document.getElementById("cats-container").innerHTML = "<p>CSV sem dados.</p>";
-        return;
-      }
+// ====== CONFIG ======
+const CSV_URL = "data/relatorio_faturamento.csv";
+const CATEGORIES = [
+  "Corrediça Oculta",
+  "Corrediça Telescópica",
+  "Dobradiças",
+  "Articuladores",
+  "Rodízio",
+  "Pulsadores",
+  "Acessórios"
+];
 
-      monthKeys = computeMonthKeys(rawRows);
-      minKey = monthKeys[0];
-      maxKey = monthKeys[monthKeys.length-1];
+// ====== Categoria Mapper ======
+function mapCategoria(d){
+  d=(d||'').toUpperCase();
+  if(d.includes('ESCOND')||d.includes('SLIM MV119')||d.includes('DREAM BOX')||d.includes('OPENBOX')||(d.includes('GAVETA')&&(d.includes('BOX')||d.includes('OPENBOX'))))return'Corrediça Oculta';
+  if(d.includes('TRILHO LIGHT')||d.includes('TRILHO LIFE')||d.includes('TRILHO MOVE')||d.includes('TRILHO LIGTH')||(d.includes('TRILHO')&&(d.includes('NORMAL')||d.includes('TELE')||d.includes('TEL'))))return'Corrediça Telescópica';
+  if(d.includes('DOBRAD'))return'Dobradiças';
+  if(d.includes('PIST')||d.includes('ARTICUL'))return'Articuladores';
+  if(d.includes('RODIZ'))return'Rodízio';
+  if(d.includes('PULSADOR')||d.includes('TIP-ON')||d.includes('TIP ON'))return'Pulsadores';
+  return'Acessórios';
+}
 
-      populatePeriodSelectors();
-      buildCategoryCards("cats-container", CATEGORIES);
-      applyFiltersAndRender();
-    },
-    error: (err)=>{
-      document.getElementById("cats-container").innerHTML = "<p>Erro ao carregar CSV.</p>";
-      console.error(err);
-    }
+// ====== DOM refs ======
+const metricSel = document.getElementById("metric");
+const fromSel   = document.getElementById("from");
+const toSel     = document.getElementById("to");
+const applyBtn  = document.getElementById("apply");
+
+// ====== State ======
+let rawRows = [];
+let monthKeys = [];
+let minKey="", maxKey="";
+
+// ====== Utils ======
+const z2 = n=> String(n).padStart(2,"0");
+function keyToLabel(key){ const [y,m] = key.split("-"); return `${m}/${y}`; }
+function ymToKey(Y,M){ return `${Y}-${z2(M)}`; }
+function parseNumber(x){ if (typeof x==="number") return x; if(!x) return 0; return Number(String(x).replace(/\./g,'').replace(',','.'))||0; }
+function* monthRange(startKey,endKey){ let [ys,ms]=startKey.split("-").map(Number); const [ye,me]=endKey.split("-").map(Number); while(ys<ye||(ys===ye&&ms<=me)){ yield ymToKey(ys,ms); ms++; if(ms===13){ms=1;ys++;} } }
+
+// ====== UI Builders ======
+function populatePeriodSelectors(){
+  fromSel.innerHTML = ""; toSel.innerHTML = "";
+  monthKeys.forEach(k=>{
+    const opt1=document.createElement("option"); opt1.value=k; opt1.textContent=keyToLabel(k);
+    const opt2=opt1.cloneNode(true);
+    fromSel.appendChild(opt1); toSel.appendChild(opt2);
   });
+  const all=[...monthKeys]; let defFrom=minKey, defTo=maxKey;
+  if(all.length>12){ defFrom=all[all.length-12]; }
+  fromSel.value=defFrom; toSel.value=defTo;
+}
 
-  // events
-  applyBtn.addEventListener("click", applyFiltersAndRender);
-  metricSel.addEventListener("change", applyFiltersAndRender);
-  window.addEventListener("resize", ()=>{
-    document.querySelectorAll(".card-wrap").forEach(w=>{
-      if (w.style.maxHeight && w.style.maxHeight !== "0px"){
-        w.style.maxHeight = w.scrollHeight + "px";
-      }
+function normalizeRows(csvRows){
+  return csvRows.map(r=>{
+    const ano=parseInt(r.Ano,10); const mes=parseInt(r.Mes,10); const key=ymToKey(ano,mes);
+    return {
+      codigo:r.Codigo,
+      descricao:r.Descricao||"",
+      quantidade:parseNumber(r.Quantidade),
+      valor:parseNumber(r.Valor),
+      mes,ano,key,
+      categoria:mapCategoria(r.Descricao||"")
+    };
+  }).filter(r=>r.ano>0&&r.mes>0&&r.mes<=12);
+}
+function computeMonthKeys(rows){
+  const set=new Set(rows.map(r=>r.key));
+  return Array.from(set).sort();
+}
+function aggregateByCategoryMonthly(rows,startKey,endKey,metric){
+  const keys=Array.from(monthRange(startKey,endKey));
+  const result={}; CATEGORIES.forEach(cat=>{result[cat]={x:keys.slice(),y:keys.map(_=>0)};});
+  rows.forEach(r=>{
+    if(r.key<startKey||r.key>endKey)return;
+    const cat=CATEGORIES.includes(r.categoria)?r.categoria:'Acessórios';
+    const idx=result[cat].x.indexOf(r.key);
+    if(idx>=0){ result[cat].y[idx]+=(metric==="Quantidade"?r.quantidade:r.valor); }
+  });
+  return result;
+}
+
+function buildCategoryCards(containerId,categories){
+  const container=document.getElementById(containerId);
+  container.innerHTML=categories.map(cat=>{
+    const safe=cat.replace(/\s+/g,'-').toLowerCase();
+    return `
+      <div class="section">
+        <div class="titlebar collapsible" data-target="card-${safe}">
+          <span>${cat}</span><span class="caret">▶</span>
+        </div>
+        <div id="card-${safe}" class="card-wrap" style="max-height:0">
+          <div class="card">
+            <div id="chart-${safe}" style="width:100%;height:360px"></div>
+          </div>
+        </div>
+      </div>`;
+  }).join("");
+  container.querySelectorAll(".titlebar.collapsible").forEach(tb=>{
+    tb.addEventListener("click",()=>{
+      const id=tb.getAttribute("data-target");
+      const wrap=document.getElementById(id);
+      const open=(!wrap.style.maxHeight||wrap.style.maxHeight==="0px");
+      if(open){ wrap.style.maxHeight=wrap.scrollHeight+"px"; }
+      else{ wrap.style.maxHeight="0"; }
+      const caret=tb.querySelector(".caret");
+      if(caret)caret.textContent=open?"▼":"▶";
+      if(open){ tb.scrollIntoView({behavior:"smooth",block:"start"}); }
     });
   });
 }
 
-init();
+function drawCharts(seriesByCat,metricLabel){
+  Object.entries(seriesByCat).forEach(([cat,ser])=>{
+    const safe=cat.replace(/\s+/g,'-').toLowerCase();
+    const el=document.getElementById(`chart-${safe}`); if(!el)return;
+    const xLabels=ser.x.map(keyToLabel);
+    const trace={x:xLabels,y:ser.y,mode:'lines+markers',type:'scatter',name:cat};
+    const layout={
+      margin:{l:50,r:20,t:10,b:40},
+      xaxis:{tickangle:-45},
+      yaxis:{title:metricLabel,automargin:true},
+      showlegend:false
+    };
+    Plotly.react(el,[trace],layout,{responsive:true});
+  });
+  document.querySelectorAll(".card-wrap").forEach(w=>{
+    if(w.style.maxHeight&&w.style.maxHeight!=="0px"){w.style.maxHeight=w.scrollHeight+"px";}
+  });
+}
+
+function applyFiltersAndRender(){
+  const startKey=fromSel.value; const endKey=toSel.value;
+  if(startKey>endKey){alert("Período inválido: 'De' é maior que 'Até'.");return;}
+  const metric=metricSel.value;
+  const metricLabel=metric==="Quantidade"?"Quantidade (pcs)":"Valor (R$)";
+  const series=aggregateByCategoryMonthly(rawRows,startKey,endKey,metric);
+  drawCharts(series,metricLabel);
+}
+
+// ====== INIT (Safe Loader) ======
+window.addEventListener("DOMContentLoaded", ()=>{
+  try{
+    console.log("🚀 Desempenho Linha init started");
+    Papa.parse(CSV_URL,{
+      download:true,
+      header:true,
+      skipEmptyLines:true,
+      beforeFirstChunk:function(chunk){
+        const firstLine=chunk.split(/\r?\n/)[0];
+        if(firstLine.includes("\t"))this.delimiter="\t"; else this.delimiter=",";
+        console.log("Detected delimiter:",JSON.stringify(this.delimiter));
+        return chunk;
+      },
+      complete:(res)=>{
+        try{
+          const rows=res.data||[];
+          rawRows=normalizeRows(rows);
+          console.log("✅ CSV parsed rows:",rawRows.length);
+          if(!rawRows.length){
+            document.getElementById("cats-container").innerHTML="<p>CSV sem dados.</p>";
+            return;
+          }
+          monthKeys=computeMonthKeys(rawRows);
+          minKey=monthKeys[0]; maxKey=monthKeys[monthKeys.length-1];
+          populatePeriodSelectors();
+          buildCategoryCards("cats-container",CATEGORIES);
+          applyFiltersAndRender();
+        }catch(e){
+          console.error("Error rendering charts:",e);
+          document.getElementById("cats-container").innerHTML="<p>Erro ao processar dados.</p>";
+        }
+      },
+      error:(err)=>{
+        console.error("PapaParse error:",err);
+        document.getElementById("cats-container").innerHTML="<p>Erro ao carregar CSV.</p>";
+      }
+    });
+
+    applyBtn.addEventListener("click",applyFiltersAndRender);
+    metricSel.addEventListener("change",applyFiltersAndRender);
+
+    window.addEventListener("resize",()=>{
+      document.querySelectorAll(".card-wrap").forEach(w=>{
+        if(w.style.maxHeight&&w.style.maxHeight!=="0px"){w.style.maxHeight=w.scrollHeight+"px";}
+      });
+    });
+  }catch(globalErr){
+    console.error("💥 Fatal init error:",globalErr);
+    document.body.innerHTML+="<p style='padding:16px;color:red'>Erro de inicialização: veja o console.</p>";
+  }
+});
 </script>
+</body>
+</html>
