@@ -22,55 +22,31 @@ def br_to_float(s):
     return float(s.strip().replace(".", "").replace(",", "."))
 
 
+import pandas as pd
+
 # -------------------------------------------------------
-# 🔥 OFFICIAL PERFORMANCE MOVELEIRO CATEGORY FUNCTION
+# Load category mapping CSV
+# -------------------------------------------------------
+@st.cache_data
+def load_category_map():
+    df = pd.read_csv("data/categorias_map.csv")
+    df["pattern"] = df["pattern"].astype(str).str.upper()
+    df["categoria"] = df["categoria"].astype(str)
+    df["prioridade"] = df["prioridade"].astype(int)
+    df = df.sort_values("prioridade")
+    return df
+
+CATEGORY_MAP = load_category_map()
+
+# -------------------------------------------------------
+# Apply category classification
 # -------------------------------------------------------
 def map_categoria(desc: str) -> str:
-    d = (desc or "").upper()
-
-    # Corrediça Oculta
-    if (
-        "ESCOND" in d
-        or "SLIM MV119" in d
-        or "DREAM BOX" in d
-        or "OPENBOX" in d
-        or ("GAVETA" in d and ("BOX" in d or "OPENBOX" in d))
-    ):
-        return "Corrediça Oculta"
-
-    # Corrediça Telescópica
-    if (
-        "TRILHO LIGHT" in d
-        or "TRILHO LIFE" in d
-        or "TRILHO MOVE" in d
-        or "TRILHO LIGTH" in d
-        or ("TRILHO" in d and ("NORMAL" in d or "TELE" in d))
-    ):
-        return "Corrediça Telescópica"
-
-    # Dobradiças
-    if "DOBRAD" in d or "HINGE" in d:
-        return "Dobradiças"
-
-    # Pistão / Amortecedor
-    if "PISTAO" in d or "AMORTECEDOR" in d:
-        return "Pistão / Amortecedor"
-
-    # Acessórios
-    if (
-        "SUPORTE" in d
-        or "CANTONEIRA" in d
-        or "PLACA" in d
-        or "FIXAÇÃO" in d
-        or "FIXACAO" in d
-        or "PARAFUSO" in d
-        or "ACESSÓRIO" in d
-        or "ACESSORIO" in d
-    ):
-        return "Acessórios"
-
+    text = (str(desc) or "").upper()
+    for _, row in CATEGORY_MAP.iterrows():
+        if row["pattern"] in text:
+            return row["categoria"]
     return "Outros"
-
 
 # -------------------------------------------------------
 # REGEX DEFINITIONS
@@ -176,3 +152,4 @@ if uploaded_file:
         )
 
         st.info("📊 Arquivos prontos para download (incluindo coluna **Categoria**).")
+
