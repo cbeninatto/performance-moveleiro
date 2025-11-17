@@ -6,26 +6,31 @@ from io import BytesIO
 import time
 
 
+# -------------------------------------------------------
+# STREAMLIT UI CONFIG
+# -------------------------------------------------------
 st.set_page_config(page_title="Relatório de Faturamento Extractor", page_icon="📄")
 st.title("📄 Extrator de Relatório de Faturamento")
 
 st.markdown("""
-Envie o PDF completo do relatório de faturamento e o sistema extrairá automaticamente os dados para **CSV** e **XLSX**, incluindo a **categoria de cada produto** usando a mesma lógica do Performance Moveleiro.
+Envie o PDF completo do relatório de faturamento e o sistema extrairá automaticamente os dados para **CSV** e **XLSX**, incluindo a **categoria de cada produto** com a lógica oficial do Performance Moveleiro.
 
-Upload your complete billing report PDF below — the system will extract and classify products into clean **CSV** and **XLSX** files.
+Upload your complete billing report PDF below — the system extracts and classifies products into clean **CSV** and **XLSX** files.
 """)
 
 uploaded_file = st.file_uploader("📤 Escolha o arquivo PDF", type="pdf")
 
 
+# -------------------------------------------------------
+# UTILS
+# -------------------------------------------------------
 def br_to_float(s):
+    """Converts Brazilian number formatting to float."""
     return float(s.strip().replace(".", "").replace(",", "."))
 
 
-import pandas as pd
-
 # -------------------------------------------------------
-# Load category mapping CSV
+# 📌 LOAD CATEGORY MAP CSV
 # -------------------------------------------------------
 @st.cache_data
 def load_category_map():
@@ -36,10 +41,12 @@ def load_category_map():
     df = df.sort_values("prioridade")
     return df
 
+
 CATEGORY_MAP = load_category_map()
 
+
 # -------------------------------------------------------
-# Apply category classification
+# 🧠 OFFICIAL PERFORMANCE MOVELEIRO CATEGORY ENGINE
 # -------------------------------------------------------
 def map_categoria(desc: str) -> str:
     text = (str(desc) or "").upper()
@@ -48,11 +55,13 @@ def map_categoria(desc: str) -> str:
             return row["categoria"]
     return "Outros"
 
+
 # -------------------------------------------------------
-# REGEX DEFINITIONS
+# REGEX DEFINITIONS FOR PDF PARSING
 # -------------------------------------------------------
 prod_header_re = re.compile(r"^\s*PRODUTO:\s*(\d+)\s*-\s*(.+?)\s*$", re.IGNORECASE)
 cleanup_re = re.compile(r"\s*Quantidade\s*%\s*Quantidade\s*Valor\s*%\s*Valor\s*$", re.IGNORECASE)
+
 mes_line_re = re.compile(
     r"^\s*MÊS\s*:\s*(\d{2})/(\d{4}).*?\s([\d\.\,]+)\s+[\d\.\,]+%\s+([\d\.\,]+)\s+[\d\.\,]+%",
     re.IGNORECASE,
@@ -60,9 +69,10 @@ mes_line_re = re.compile(
 
 
 # -------------------------------------------------------
-# PROCESS PDF
+# 📘 PROCESS PDF
 # -------------------------------------------------------
 if uploaded_file:
+
     records, current_code, current_desc = [], None, None
 
     with pdfplumber.open(uploaded_file) as pdf:
@@ -77,9 +87,11 @@ if uploaded_file:
 
             for raw in (page.extract_text() or "").splitlines():
                 line = raw.strip()
+
                 if not line or "Subtotal PRODUTO" in line or "www.kunden.com.br" in line:
                     continue
 
+                # Detect product header
                 if line.upper().startswith("PRODUTO:"):
                     m = prod_header_re.match(line)
                     if m:
@@ -87,6 +99,7 @@ if uploaded_file:
                         current_desc = cleanup_re.sub("", m.group(2)).strip(" -")
                     continue
 
+                # Detect month line (Mes/Ano + Qty + Value)
                 m2 = mes_line_re.match(line)
                 if m2 and current_code:
                     mes, ano, qty, val = m2.groups()
@@ -113,14 +126,12 @@ if uploaded_file:
     # -------------------------------------------------------
     if not records:
         st.error("Nenhum dado encontrado. O PDF pode estar em formato inesperado.")
+
     else:
         df = pd.DataFrame(records)
 
         # 🔥 APPLY OFFICIAL CATEGORY LOGIC
         df["Categoria"] = df["Descricao"].apply(map_categoria)
-
-        # Optional debug
-        st.caption("Colunas: " + ", ".join(df.columns))
 
         st.success(f"✅ Extração concluída — {len(df)} linhas ({df['Codigo'].nunique()} produtos).")
         st.dataframe(df.head(20))
@@ -152,4 +163,3 @@ if uploaded_file:
         )
 
         st.info("📊 Arquivos prontos para download (incluindo coluna **Categoria**).")
-
