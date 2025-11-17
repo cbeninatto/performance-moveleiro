@@ -9,9 +9,9 @@ st.set_page_config(page_title="Relatório de Faturamento Extractor", page_icon="
 st.title("📄 Extrator de Relatório de Faturamento")
 
 st.markdown("""
-Envie o PDF completo do relatório de faturamento e o sistema extrairá automaticamente os dados para **CSV** e **XLSX**.
+Envie o PDF completo do relatório de faturamento e o sistema extrairá automaticamente os dados para **CSV** e **XLSX**, incluindo a **categoria de cada produto** para verificação.
 
-Upload your complete billing report PDF below — the system will automatically extract the data into clean **CSV** and **XLSX** files.
+Upload your complete billing report PDF below — the system will automatically extract and classify data into clean **CSV** and **XLSX** files.
 """)
 
 uploaded_file = st.file_uploader("📤 Escolha o arquivo PDF", type="pdf")
@@ -21,6 +21,24 @@ def br_to_float(s):
     return float(s.strip().replace(".", "").replace(",", "."))
 
 
+# --- Classification function ---
+def map_categoria(desc: str) -> str:
+    """Classify products based on description keywords."""
+    d = (desc or "").upper()
+    if any(x in d for x in ["ESCOND", "SLIM MV119", "DREAM BOX", "OPENBOX"]) or \
+       ("GAVETA" in d and any(y in d for y in ["BOX", "OPENBOX"])):
+        return "Corrediça Oculta"
+    if any(x in d for x in ["TRILHO LIGHT", "TRILHO LIFE", "TRILHO MOVE", "TRILHO LIGTH"]) or \
+       ("TRILHO" in d and any(y in d for y in ["NORMAL", "TELE"])): 
+        return "Corrediça Telescópica"
+    if any(x in d for x in ["DOBRADICA", "HINGE", "PISTAO", "AMORTECEDOR"]):
+        return "Dobradiça / Pistão"
+    if any(x in d for x in ["SUPORTE", "CANTONEIRA", "PLACA", "FIXAÇÃO", "PARAFUSO"]):
+        return "Acessório"
+    return "Outros"
+
+
+# --- Regex definitions ---
 prod_header_re = re.compile(r"^\s*PRODUTO:\s*(\d+)\s*-\s*(.+?)\s*$", re.IGNORECASE)
 cleanup_re = re.compile(r"\s*Quantidade\s*%\s*Quantidade\s*Valor\s*%\s*Valor\s*$", re.IGNORECASE)
 mes_line_re = re.compile(
@@ -63,14 +81,13 @@ if uploaded_file:
                     except Exception:
                         pass
             progress_bar.progress(i / total_pages)
-            time.sleep(0.05)  # smooth progress animation
+            time.sleep(0.05)
 
         status_text.text("📘 Leitura concluída — processando dados...")
 
     if not records:
         st.error("Nenhum dado foi encontrado. Verifique se o PDF tem o formato esperado.")
     else:
-        # Simulated data processing progress
         processing_bar = st.progress(0)
         for p in range(0, 101, 10):
             processing_bar.progress(p / 100)
@@ -78,7 +95,11 @@ if uploaded_file:
         processing_bar.empty()
 
         df = pd.DataFrame(records)
-        st.success(f"✅ Extração concluída — {len(df)} linhas encontradas ({df['Codigo'].nunique()} produtos).")
+
+        # --- Apply categorization ---
+        df["Categoria"] = df["Descricao"].apply(map_categoria)
+
+        st.success(f"✅ Extração concluída — {len(df)} linhas ({df['Codigo'].nunique()} produtos).")
         st.dataframe(df.head(20))
 
         # CSV
@@ -91,4 +112,4 @@ if uploaded_file:
             df.to_excel(writer, index=False)
         st.download_button("⬇️ Baixar XLSX", xlsx_io.getvalue(), "relatorio_faturamento.xlsx", "application/vnd.ms-excel")
 
-        st.info("📊 Arquivos prontos para download.")
+        st.info("📊 Arquivos prontos para download (com categorias incluídas).")
